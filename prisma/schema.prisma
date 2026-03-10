@@ -1,0 +1,413 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider     = "postgresql"
+  url          = env("DATABASE_URL")
+  relationMode = "prisma"
+}
+
+// 규칙: 이미지는 Img 줄임, 모든 파일은 끝에 Url 사용
+
+// ============================================
+// 사용자 관련
+// ============================================
+
+model User {
+  id             BigInt          @id @default(autoincrement()) @map("id")
+  guid           String          @unique @map("guid") @db.VarChar(40)
+  email          String          @unique @map("email")
+  password       String?         @map("password")
+  name           String          @map("name")
+  nickname       String          @unique @map("nickname")
+  phone          String?         @map("phone")
+  profileImgUrl  String?         @map("profile_img_url")
+  status         String          @default("ACTIVE") @map("status")
+  role           String          @default("USER") @map("role")
+  loginMethod    String?         @default("EMAIL") @map("login_method")
+  lastLoginAt    DateTime?       @map("last_login_at")
+  refreshToken   String?         @map("refresh_token")
+  createdAt      DateTime        @default(now()) @map("created_at")
+  updatedAt      DateTime        @updatedAt @map("updated_at")
+  deletedAt      DateTime?       @map("deleted_at")
+  accounts       Account[]
+  locations      UserLocation[]
+  bookmarkGroups BookmarkGroup[]
+  volunteerPosts VolunteerPost[]
+  applications   VolunteerApplication[]
+  writtenReviews Review[]        @relation("ReviewWriter")
+  reputationGroup ReputationGroup?
+
+  @@index([status], name: "user_status_index")
+  @@map("users")
+}
+
+model Account {
+  id           BigInt   @id @default(autoincrement()) @map("id")
+  guid         String   @unique @map("guid") @db.VarChar(40)
+  userId       BigInt   @map("user_id")
+  provider     String   @map("provider")
+  providerId   String   @map("provider_id")
+  accessToken  String?  @map("access_token")
+  refreshToken String?  @map("refresh_token")
+  expiresAt    DateTime? @map("expires_at")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerId])
+  @@index([userId], name: "account_user_id_index")
+  @@map("accounts")
+}
+
+model UserLocation {
+  id               BigInt    @id @default(autoincrement()) @map("id")
+  guid             String    @unique @map("guid") @db.VarChar(40)
+  userId           BigInt?   @map("user_id")
+  name             String    @map("name")
+  countryCode      String?   @map("country_code")
+  area1            String?   @map("area_1")
+  area2            String?   @map("area_2")
+  area3            String?   @map("area_3")
+  postalCode       String?   @map("postal_code")
+  address1         String?   @map("address_1")
+  address2         String?   @map("address_2")
+  address3         String?   @map("address_3")
+  formattedAddress String?   @map("formatted_address")
+  lat              Float?    @map("lat")
+  lng              Float?    @map("lng")
+  isDefault        Boolean   @default(false) @map("is_default")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+  deletedAt        DateTime? @map("deleted_at")
+
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId], name: "user_location_user_id_index")
+  @@index([area1, area2, area3], name: "user_location_area_index")
+  @@map("user_locations")
+}
+
+// ============================================
+// 카테고리
+// ============================================
+
+model Category {
+  id          BigInt    @id @default(autoincrement()) @map("id")
+  guid        String    @unique @map("guid") @db.VarChar(40)
+  type        String    @map("type")
+  name        String    @unique @map("name")
+  description String?   @map("description")
+  iconUrl     String?   @map("icon_url")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
+
+  volunteerPosts VolunteerPost[] @relation("CategoryVolunteerPosts")
+
+  @@index([type], name: "category_type_index")
+  @@index([name], name: "category_name_index")
+  @@map("categories")
+}
+
+// ============================================
+// 봉사 구인글 관련
+// ============================================
+
+model VolunteerPost {
+  id              BigInt   @id @default(autoincrement()) @map("id")
+  guid            String   @unique @map("guid") @db.VarChar(40)
+  authorUserId    BigInt   @map("author_user_id")
+  authorType      String   @map("author_type")
+
+  categoryId BigInt? @map("category_id")
+
+  title            String   @map("title")
+  description      String   @db.Text
+  viewCount        Int      @default(0) @map("view_count")
+  shelterName      String   @map("shelter_name")
+  thumbnailImageUrl String? @map("thumbnail_image_url") @db.VarChar(512)
+  activityImages   Json?    @map("activity_images")
+
+  area1            String?   @map("area_1")
+  area2            String?   @map("area_2")
+  area3            String?   @map("area_3")
+  postalCode       String?   @map("postal_code")
+  address1         String?   @map("address_1")
+  address2         String?   @map("address_2")
+  address3         String?   @map("address_3")
+  formattedAddress String?   @map("formatted_address")
+  lat              Float?    @map("lat")
+  lng              Float?    @map("lng")
+  startDate        DateTime  @map("start_date")
+  endDate          DateTime  @map("end_date")
+  status           String    @default("RECRUITING")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+  deletedAt        DateTime? @map("deleted_at")
+
+  authorUser   User                   @relation(fields: [authorUserId], references: [id], onDelete: Cascade)
+  category     Category?              @relation("CategoryVolunteerPosts", fields: [categoryId], references: [id], onDelete: SetNull)
+  timeSlots    VolunteerTimeSlot[]
+  postItems    VolunteerPostItem[]
+  applications VolunteerApplication[]
+  bookmarks    Bookmark[]
+  reviews      Review[]               @relation("VolunteerPostReviews")
+
+  @@index([authorUserId], name: "volunteer_post_author_user_id_index")
+  @@index([categoryId], name: "volunteer_post_category_id_index")
+  @@index([status], name: "volunteer_post_status_index")
+  @@index([startDate, endDate], name: "volunteer_post_date_range_index")
+  @@index([area1, area2, area3], name: "volunteer_post_area_index")
+  @@map("volunteer_posts")
+}
+
+model VolunteerTimeSlot {
+  id              BigInt   @id @default(autoincrement()) @map("id")
+  guid            String   @unique @map("guid") @db.VarChar(40)
+  volunteerPostId BigInt   @map("volunteer_post_id")
+  date            DateTime @map("date")
+  startTime       String   @map("start_time")
+  endTime         String   @map("end_time")
+  maxParticipants Int?     @map("max_participants")
+  status          String   @default("OPEN") @map("status")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+  deletedAt       DateTime? @map("deleted_at")
+
+  volunteerPost        VolunteerPost         @relation(fields: [volunteerPostId], references: [id], onDelete: Cascade)
+  applicationTimeSlots ApplicationTimeSlot[]
+
+  @@index([volunteerPostId], name: "volunteer_time_slot_volunteer_post_id_index")
+  @@index([date], name: "volunteer_time_slot_date_index")
+  @@index([status], name: "volunteer_time_slot_status_index")
+  @@map("volunteer_time_slots")
+}
+
+// ============================================
+// 준비물 관련
+// ============================================
+
+model Item {
+  id          BigInt    @id @default(autoincrement()) @map("id")
+  guid        String    @unique @map("guid") @db.VarChar(40)
+  type        String    @map("type")
+  name        String    @unique @map("name")
+  description String?   @map("description")
+  unit        String    @map("unit")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
+  postItems   VolunteerPostItem[]
+
+  @@index([type], name: "item_type_index")
+  @@map("items")
+}
+
+model VolunteerPostItem {
+  id              BigInt   @id @default(autoincrement()) @map("id")
+  guid            String   @unique @map("guid") @db.VarChar(40)
+  volunteerPostId BigInt   @map("volunteer_post_id")
+  itemId          BigInt   @map("item_id")
+  quantity        Int      @default(1) @map("quantity")
+  description     String?  @map("description")
+  isRequired      Boolean  @default(false) @map("is_required")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+  deletedAt       DateTime? @map("deleted_at")
+
+  volunteerPost VolunteerPost @relation(fields: [volunteerPostId], references: [id], onDelete: Cascade)
+  item          Item         @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@unique([volunteerPostId, itemId])
+  @@index([volunteerPostId], name: "volunteer_post_item_volunteer_post_id_index")
+  @@index([itemId], name: "volunteer_post_item_item_id_index")
+  @@map("volunteer_post_items")
+}
+
+// ============================================
+// 봉사 신청 관련
+// ============================================
+
+model VolunteerApplication {
+  id                BigInt    @id @default(autoincrement()) @map("id")
+  guid              String    @unique @map("guid") @db.VarChar(40)
+  userId            BigInt    @map("user_id")
+  volunteerPostId   BigInt    @map("volunteer_post_id")
+  status            String    @default("PENDING") @map("status")
+  applicantName     String?   @map("applicant_name") @db.VarChar(50)
+  applicantPhone   String?   @map("applicant_phone") @db.VarChar(20)
+  attended          Boolean?  @map("attended")
+  attendanceStatus  String?   @map("attendance_status") @db.VarChar(20)
+  isNotifiedAllowed Boolean?  @default(true) @map("is_notified_allowed")
+  isAttentionAgreed Boolean?  @default(false) @map("is_attention_agreed")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+  deletedAt         DateTime? @map("deleted_at")
+
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  volunteerPost VolunteerPost  @relation(fields: [volunteerPostId], references: [id], onDelete: Cascade)
+  timeSlots      ApplicationTimeSlot[]
+  cancellations VolunteerApplicationCancellation[]
+
+  @@unique([userId, volunteerPostId])
+  @@index([userId], name: "volunteer_application_user_id_index")
+  @@index([volunteerPostId], name: "volunteer_application_volunteer_post_id_index")
+  @@index([status], name: "volunteer_application_status_index")
+  @@map("volunteer_applications")
+}
+
+model VolunteerApplicationCancellation {
+  id            BigInt               @id @default(autoincrement()) @map("id")
+  guid          String               @unique @map("guid") @db.VarChar(40)
+  applicationId BigInt               @map("application_id")
+  reason        String?              @map("reason") @db.Text
+  cancelledBy   String?              @map("cancelled_by")
+  createdAt     DateTime             @default(now())
+
+  application VolunteerApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@index([applicationId], name: "volunteer_application_cancellation_application_id_index")
+  @@map("volunteer_application_cancellations")
+}
+
+model ApplicationTimeSlot {
+  id                     BigInt               @id @default(autoincrement()) @map("id")
+  guid                   String               @unique @map("guid") @db.VarChar(40)
+  volunteerApplicationId BigInt                @map("volunteer_application_id")
+  volunteerTimeSlotId    BigInt                @map("volunteer_time_slot_id")
+  createdAt              DateTime             @default(now())
+
+  application VolunteerApplication @relation(fields: [volunteerApplicationId], references: [id], onDelete: Cascade)
+  timeSlot    VolunteerTimeSlot    @relation(fields: [volunteerTimeSlotId], references: [id], onDelete: Cascade)
+
+  @@unique([volunteerApplicationId, volunteerTimeSlotId])
+  @@index([volunteerApplicationId], name: "application_time_slot_volunteer_application_id_index")
+  @@index([volunteerTimeSlotId], name: "application_time_slot_volunteer_time_slot_id_index")
+  @@map("application_time_slots")
+}
+
+// ============================================
+// 북마크 관련
+// ============================================
+
+model BookmarkGroup {
+  id        BigInt    @id @default(autoincrement()) @map("id")
+  guid      String    @unique @map("guid") @db.VarChar(40)
+  userId    BigInt    @map("user_id")
+  seq       Int       @default(1) @map("seq")
+  name      String    @map("name")
+  category  String    @map("category")
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bookmarks Bookmark[]
+
+  @@index([userId], name: "bookmark_group_user_id_index")
+  @@index([category], name: "bookmark_group_category_index")
+  @@map("bookmark_groups")
+}
+
+model Bookmark {
+  id              BigInt        @id @default(autoincrement()) @map("id")
+  guid            String        @unique @map("guid") @db.VarChar(40)
+  seq             Int           @default(1) @map("seq")
+  bookmarkGroupId BigInt        @map("bookmark_group_id")
+  volunteerPostId BigInt        @map("volunteer_post_id")
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+  deletedAt       DateTime?     @map("deleted_at")
+
+  bookmarkGroup BookmarkGroup @relation(fields: [bookmarkGroupId], references: [id], onDelete: Cascade)
+  volunteerPost VolunteerPost @relation(fields: [volunteerPostId], references: [id], onDelete: Cascade)
+
+  @@unique([bookmarkGroupId, volunteerPostId])
+  @@index([bookmarkGroupId], name: "bookmark_bookmark_group_id_index")
+  @@index([volunteerPostId], name: "bookmark_volunteer_post_id_index")
+  @@map("bookmarks")
+}
+
+// ============================================
+// 평판 관련
+// ============================================
+
+model ReputationGroup {
+  id           BigInt   @id @default(autoincrement()) @map("id")
+  guid         String   @unique @map("guid") @db.VarChar(40)
+  userId       BigInt   @unique @map("user_id")
+  avgRating    Float    @default(0) @map("avg_rating")
+  totalReviews Int      @default(0) @map("total_reviews")
+  totalHearts  Int      @default(0) @map("total_hearts")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+  deletedAt    DateTime? @map("deleted_at")
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reviews Review[]
+
+  @@index([userId], name: "reputation_group_user_id_index")
+  @@map("reputation_groups")
+}
+
+model Review {
+  id                BigInt    @id @default(autoincrement()) @map("id")
+  guid              String    @unique @map("guid") @db.VarChar(40)
+  reputationGroupId BigInt    @map("reputation_group_id")
+  writerId          BigInt    @map("writer_id")
+  volunteerPostId   BigInt?   @map("volunteer_post_id")
+  rating            Int       @map("rating")
+  comment           String?   @map("comment") @db.Text
+  reviewType        ReviewType @map("review_type")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+  deletedAt         DateTime? @map("deleted_at")
+
+  reputationGroup ReputationGroup @relation(fields: [reputationGroupId], references: [id], onDelete: Cascade)
+  writer          User            @relation("ReviewWriter", fields: [writerId], references: [id], onDelete: Cascade)
+  volunteerPost   VolunteerPost?  @relation("VolunteerPostReviews", fields: [volunteerPostId], references: [id], onDelete: SetNull)
+
+  @@index([reputationGroupId], name: "review_reputation_group_id_index")
+  @@index([writerId], name: "review_writer_id_index")
+  @@index([volunteerPostId], name: "review_volunteer_post_id_index")
+  @@map("reviews")
+}
+
+enum ReviewType {
+  PARTICIPANT_TO_ORGANIZER
+  ORGANIZER_TO_PARTICIPANT
+}
+
+// ============================================
+// 파일 버킷 관련
+// ============================================
+
+model FileBucket {
+  id             BigInt    @id @default(autoincrement()) @map("id")
+  guid           String    @unique @map("guid") @db.VarChar(40)
+  kind           String    @default("NONE") @map("kind")
+  entity         String    @map("entity")
+  entityColumn   String    @map("entity_column")
+  entityGuid     String?   @map("entity_guid")
+  path           String    @map("path")
+  originFilename String    @map("origin_filename")
+  size           BigInt    @map("size")
+  ext            String    @map("ext")
+  encoding       String    @map("encoding")
+  mimeType       String    @map("mime_type")
+  isUsed         Boolean?  @map("is_used")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+  deletedAt      DateTime? @map("deleted_at")
+
+  @@index([entityGuid], name: "file_bucket_entity_guid_index")
+  @@index([entityColumn], name: "file_bucket_entity_column_index")
+  @@index([entityGuid, entityColumn], name: "file_bucket_entity_guid_and_column_index")
+  @@map("file_bucket")
+}
