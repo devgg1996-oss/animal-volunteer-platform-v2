@@ -1293,6 +1293,31 @@ async function ensureReputationGroupForUser(userId: bigint): Promise<bigint> {
   return g.id;
 }
 
+// --- 이메일 인증 코드 ---
+
+export async function createEmailVerification(email: string, code: string, ttlMinutes = 10): Promise<void> {
+  const expiresAt = new Date(Date.now() + ttlMinutes * 60 * 1000);
+  await prisma.emailVerification.create({
+    data: {
+      email,
+      code,
+      expiresAt,
+    },
+  });
+}
+
+export async function verifyEmailCode(email: string, code: string): Promise<boolean> {
+  const row = await prisma.emailVerification.findFirst({
+    where: {
+      email,
+      code,
+      expiresAt: { gt: new Date() },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+  return !!row;
+}
+
 export type CreateReviewInput = {
   writerId: number;
   targetUserId: number;

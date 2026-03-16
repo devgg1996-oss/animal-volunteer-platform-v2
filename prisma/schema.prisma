@@ -411,3 +411,18 @@ model FileBucket {
   @@index([entityGuid, entityColumn], name: "file_bucket_entity_guid_and_column_index")
   @@map("file_bucket")
 }
+
+// ============================================
+// 이메일 인증 코드
+// ============================================
+
+model EmailVerification {
+  id        BigInt   @id @default(autoincrement()) @map("id")
+  email     String   @map("email")
+  code      String   @map("code")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([email], name: "email_verification_email_index")
+  @@map("email_verifications")
+}

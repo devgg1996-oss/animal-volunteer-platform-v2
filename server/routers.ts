@@ -49,7 +49,11 @@ import {
   getMyReceivedVolunteerReviewById,
   hashPassword,
   setUserPasswordByEmail,
+  createEmailVerification,
+  verifyEmailCode,
 } from "./db";
+import { sendVerificationEmail } from "./email";
+import crypto from "crypto";
 import { uploadImage } from "./storage";
 
 export const appRouter = router({
@@ -91,24 +95,35 @@ export const appRouter = router({
         success: true,
       } as const;
     }),
-    /** 이메일 인증 코드 발송 (스텁: 실제 발송 없이 성공 반환) */
+    /** 이메일 인증 코드 발송 (Resend 연동) */
     sendEmailVerification: publicProcedure
       .input(z.object({ email: z.string().email() }))
-      .mutation(async () => ({ success: true, message: "인증 코드가 발송되었습니다." })),
+      .mutation(async ({ input }) => {
+        const code = crypto.randomInt(100000, 999999).toString();
+        await createEmailVerification(input.email, code);
+        await sendVerificationEmail(input.email, code);
+        return { success: true, message: "인증 코드가 발송되었습니다." } as const;
+      }),
 
-    /** 이메일 인증 코드 검증 (스텁: 항상 성공) */
+    /** 이메일 인증 코드 검증 */
     verifyEmail: publicProcedure
       .input(z.object({ email: z.string().email(), code: z.string().min(1) }))
-      .mutation(async () => ({ success: true, verified: true })),
+      .mutation(async ({ input }) => {
+        const ok = await verifyEmailCode(input.email, input.code);
+        if (!ok) {
+          throw new Error("인증 코드가 올바르지 않거나 만료되었습니다.");
+        }
+        return { success: true, verified: true } as const;
+      }),
 
-    /** 회원가입 (일반 이메일). 이메일 인증 후 사용 권장. */
+    /** 회원가입 (일반 이메일). 이메일 인증 코드가 일치해야 가입 가능. */
     signup: publicProcedure
       .input(
         z.object({
           email: z.string().email(),
           password: z.string().min(4),
           name: z.string().min(1),
-          verificationCode: z.string().optional(),
+          verificationCode: z.string().min(1, "이메일 인증 코드를 입력해 주세요."),
         })
       )
       .mutation(async ({ input }) => {
@@ -118,6 +133,11 @@ export const appRouter = router({
         const existing = await getUserByOpenId(openId).catch(() => undefined);
         if (existing) {
           throw new Error("이미 가입된 이메일입니다. 로그인하거나 이메일 인증을 진행해 주세요.");
+        }
+
+        const verified = await verifyEmailCode(input.email, input.verificationCode);
+        if (!verified) {
+          throw new Error("이메일 인증 코드가 올바르지 않거나 만료되었습니다.");
         }
 
         try {

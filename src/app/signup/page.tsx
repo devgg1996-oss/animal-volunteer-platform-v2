@@ -15,6 +15,7 @@ export default function SignupPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+   const [verificationCode, setVerificationCode] = useState("");
 
   const signupMutation = trpc.auth.signup.useMutation({
     onSuccess: (res) => {
@@ -44,10 +45,15 @@ export default function SignupPage() {
       toast.error("이름, 이메일, 비밀번호를 입력하세요.");
       return;
     }
+    if (!verificationCode.trim()) {
+      toast.error("이메일로 받은 인증 코드를 입력해 주세요.");
+      return;
+    }
     signupMutation.mutate({
       name: name.trim(),
       email: email.trim(),
       password,
+      verificationCode: verificationCode.trim(),
     });
   };
 
@@ -105,6 +111,17 @@ export default function SignupPage() {
                 인증 메일 보내기
               </Button>
             </div>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="verificationCode">인증 코드</Label>
+            <Input
+              id="verificationCode"
+              placeholder="이메일로 받은 6자리 코드를 입력하세요"
+              value={verificationCode}
+              onChange={(e) => setVerificationCode(e.target.value)}
+              disabled={loading}
+              className="border-orange-200 focus-visible:ring-orange-500"
+            />
           </div>
           <div className="space-y-2">
             <Label htmlFor="password">비밀번호</Label>
