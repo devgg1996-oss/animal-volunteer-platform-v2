@@ -27,6 +27,7 @@ export default function VolunteerDetailPage() {
   const id = params?.id;
   const postId = typeof id === "string" ? parseInt(id, 10) : 0;
   const [showLoginDialog, setShowLoginDialog] = useState(false);
+  const [previewIndex, setPreviewIndex] = useState<number | null>(null);
 
   const { data: postData, isLoading } = trpc.volunteer.getById.useQuery({ id: postId });
   const { data: myBookmarks = [] } = trpc.bookmark.getMyBookmarks.useQuery(
@@ -247,15 +248,14 @@ export default function VolunteerDetailPage() {
                   {post.additionalImages.map((url, idx) => {
                     const src = getImageSrc(url);
                     return src ? (
-                      <a
+                      <button
                         key={idx}
-                        href={src}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="block aspect-video rounded-lg overflow-hidden bg-gray-100 hover:opacity-90 transition"
+                        type="button"
+                        onClick={() => setPreviewIndex(idx)}
+                        className="block aspect-video rounded-lg overflow-hidden bg-gray-100 hover:opacity-90 transition focus:outline-none focus:ring-2 focus:ring-orange-500"
                       >
                         <img src={src} alt={`활동 이미지 ${idx + 1}`} className="w-full h-full object-cover" />
-                      </a>
+                      </button>
                     ) : null;
                   })}
                 </div>
@@ -334,6 +334,7 @@ export default function VolunteerDetailPage() {
         </div>
       </main>
 
+      {/* 로그인 필요 다이얼로그 */}
       <Dialog open={showLoginDialog} onOpenChange={setShowLoginDialog}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -356,6 +357,106 @@ export default function VolunteerDetailPage() {
               로그인 하기
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 활동 이미지 미리보기 다이얼로그 */}
+      <Dialog
+        open={previewIndex !== null}
+        onOpenChange={(open) => {
+          if (!open) setPreviewIndex(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>활동 이미지</DialogTitle>
+            <DialogDescription>좌우로 이미지를 넘겨보거나 닫기 버튼으로 닫을 수 있어요.</DialogDescription>
+          </DialogHeader>
+          {Array.isArray(post.additionalImages) && post.additionalImages.length > 0 && previewIndex !== null && (
+            <>
+              <div className="mt-2 flex items-center gap-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={() => {
+                    const total = post.additionalImages?.length ?? 0;
+                    if (!total) return;
+                    setPreviewIndex((prev) => {
+                      if (prev === null) return 0;
+                      return (prev - 1 + total) % total;
+                    });
+                  }}
+                  className="hidden sm:inline-flex"
+                >
+                  ‹
+                </Button>
+                <div className="flex-1">
+                  <img
+                    src={getImageSrc(post.additionalImages[previewIndex]) ?? ""}
+                    alt={`활동 이미지 ${previewIndex + 1}`}
+                    className="w-full h-auto max-h-[70vh] object-contain rounded-lg"
+                  />
+                  <p className="mt-2 text-center text-xs text-gray-500">
+                    {previewIndex + 1} / {post.additionalImages.length}
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={() => {
+                    const total = post.additionalImages?.length ?? 0;
+                    if (!total) return;
+                    setPreviewIndex((prev) => {
+                      if (prev === null) return 0;
+                      return (prev + 1) % total;
+                    });
+                  }}
+                  className="hidden sm:inline-flex"
+                >
+                  ›
+                </Button>
+              </div>
+              <DialogFooter className="mt-4 flex justify-between">
+                <div className="flex gap-2 sm:hidden justify-center w-full">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const total = post.additionalImages?.length ?? 0;
+                      if (!total) return;
+                      setPreviewIndex((prev) => {
+                        if (prev === null) return 0;
+                        return (prev - 1 + total) % total;
+                      });
+                    }}
+                  >
+                    이전
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const total = post.additionalImages?.length ?? 0;
+                      if (!total) return;
+                      setPreviewIndex((prev) => {
+                        if (prev === null) return 0;
+                        return (prev + 1) % total;
+                      });
+                    }}
+                  >
+                    다음
+                  </Button>
+                </div>
+                <Button variant="outline" onClick={() => setPreviewIndex(null)}>
+                  닫기
+                </Button>
+              </DialogFooter>
+            </>
+          )}
         </DialogContent>
       </Dialog>
     </div>
