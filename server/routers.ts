@@ -45,6 +45,8 @@ import {
   getReputationByUserId,
   getReviewsByUserId,
   createReview,
+  hashPassword,
+  setUserPasswordByEmail,
 } from "./db";
 import { uploadImage } from "./storage";
 
@@ -108,17 +110,30 @@ export const appRouter = router({
         })
       )
       .mutation(async ({ input }) => {
+        const openId = `email:${input.email}`;
+
+        // 이미 존재하는 이메일인지 먼저 확인
+        const existing = await getUserByOpenId(openId).catch(() => undefined);
+        if (existing) {
+          throw new Error("이미 가입된 이메일입니다. 로그인하거나 이메일 인증을 진행해 주세요.");
+        }
+
         try {
           await upsertUser({
-            openId: `email:${input.email}`,
+            openId,
             name: input.name,
             email: input.email,
             loginMethod: "email",
             lastSignedIn: new Date(),
           });
-          return { success: true, message: "가입되었습니다." };
-        } catch (e) {
-          throw new Error("이미 사용 중인 이메일이거나 가입에 실패했습니다.");
+
+          // 비밀번호 해시 저장
+          const passwordHash = await hashPassword(input.password);
+          await setUserPasswordByEmail(input.email, passwordHash);
+
+          return { success: true, message: "가입되었습니다. 이메일 인증을 완료해 주세요." };
+        } catch {
+          throw new Error("가입 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.");
         }
       }),
 

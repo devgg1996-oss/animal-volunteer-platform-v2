@@ -46,7 +46,7 @@ type PostCard = {
 };
 
 export default function Home() {
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, logout } = useAuth();
   const router = useRouter();
   const [location, setLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [address, setAddress] = useState("");
@@ -239,15 +239,35 @@ export default function Home() {
                 <Button variant="ghost" size="sm" onClick={() => router.push("/mypage")}>
                   마이페이지
                 </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={async () => {
+                    try {
+                      await logout();
+                      toast.success("로그아웃되었습니다.");
+                      router.push("/");
+                    } catch {
+                      toast.error("로그아웃에 실패했습니다.");
+                    }
+                  }}
+                >
+                  로그아웃
+                </Button>
               </>
             ) : (
-              <Button
-                size="sm"
-                className="bg-orange-600 hover:bg-orange-700 text-white"
-                onClick={() => router.push("/login")}
-              >
-                로그인
-              </Button>
+              <>
+                <Button variant="ghost" size="sm" onClick={() => router.push("/signup")}>
+                  회원가입
+                </Button>
+                <Button
+                  size="sm"
+                  className="bg-orange-600 hover:bg-orange-700 text-white"
+                  onClick={() => router.push("/login")}
+                >
+                  로그인
+                </Button>
+              </>
             )}
           </div>
         </div>

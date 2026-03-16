@@ -95,6 +95,16 @@ export default function LoginPage() {
             {loading ? "로그인 중..." : "로그인"}
           </Button>
         </form>
+        <div className="text-center text-xs text-gray-500">
+          계정이 없나요?{" "}
+          <button
+            type="button"
+            className="underline text-orange-600"
+            onClick={() => router.push("/signup")}
+          >
+            회원가입
+          </button>
+        </div>
         <p className="text-center text-xs text-gray-500">
           테스트 계정: test@test.com / 1234
         </p>

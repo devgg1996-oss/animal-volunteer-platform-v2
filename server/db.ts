@@ -1,4 +1,5 @@
 import { Prisma, PrismaClient } from "@prisma/client";
+import crypto from "crypto";
 import { nanoid } from "nanoid";
 import type {
   AppUser,
@@ -73,6 +74,34 @@ export async function getUserByOpenId(openId: string): Promise<AppUser | undefin
   }
 }
 
+export type UserAuthRow = {
+  id: bigint;
+  guid: string;
+  email: string;
+  name: string;
+  password: string | null;
+};
+
+export async function getUserAuthByOpenId(openId: string): Promise<UserAuthRow | undefined> {
+  try {
+    if (openId.startsWith("email:")) {
+      const email = openId.replace(/^email:/, "");
+      const u = await prisma.user.findUnique({
+        where: { email, deletedAt: null },
+        select: { id: true, guid: true, email: true, name: true, password: true },
+      });
+      return u ?? undefined;
+    }
+    const u = await prisma.user.findFirst({
+      where: { guid: openId, deletedAt: null },
+      select: { id: true, guid: true, email: true, name: true, password: true },
+    });
+    return u ?? undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export async function getUserById(id: number): Promise<AppUser | undefined> {
   try {
     const u = await prisma.user.findUnique({ where: { id: BigInt(id), deletedAt: null } });
@@ -111,6 +140,43 @@ export async function upsertUser(input: UpsertUserInput): Promise<void> {
       loginMethod: input.loginMethod ?? undefined,
       lastLoginAt: input.lastSignedIn ?? undefined,
     },
+  });
+}
+
+// --- 비밀번호 해시/검증 유틸 ---
+
+export async function hashPassword(password: string): Promise<string> {
+  const salt = crypto.randomBytes(16).toString("hex");
+  return new Promise((resolve, reject) => {
+    crypto.scrypt(password, salt, 64, (err, derivedKey) => {
+      if (err) return reject(err);
+      resolve(`scrypt:${salt}:${derivedKey.toString("hex")}`);
+    });
+  });
+}
+
+export async function verifyPassword(
+  password: string,
+  storedHash: string | null | undefined
+): Promise<boolean> {
+  if (!storedHash) return false;
+  const [algo, salt, keyHex] = storedHash.split(":");
+  if (algo !== "scrypt" || !salt || !keyHex) return false;
+
+  return new Promise((resolve, reject) => {
+    crypto.scrypt(password, salt, 64, (err, derivedKey) => {
+      if (err) return reject(err);
+      const key = Buffer.from(keyHex, "hex");
+      if (key.length !== derivedKey.length) return resolve(false);
+      resolve(crypto.timingSafeEqual(key, derivedKey));
+    });
+  });
+}
+
+export async function setUserPasswordByEmail(email: string, passwordHash: string): Promise<void> {
+  await prisma.user.update({
+    where: { email },
+    data: { password: passwordHash },
   });
 }
 
