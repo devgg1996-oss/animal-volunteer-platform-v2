@@ -308,7 +308,7 @@ export default function MyVolunteerManagePage() {
                                 className="text-xs"
                               >
                                 {app.status === "PENDING"
-                                  ? "승인 대기"
+                                  ? "승인대기"
                                   : app.status === "APPROVED"
                                     ? "승인"
                                     : app.status === "REJECTED"

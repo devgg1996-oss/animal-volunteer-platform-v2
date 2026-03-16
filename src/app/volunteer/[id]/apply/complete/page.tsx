@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
+import { MapView } from "@/components/Map";
 import {
   ArrowLeft,
   MapPin,
@@ -43,12 +44,6 @@ export default function VolunteerApplyCompletePage() {
     const schedules = (post as typeof post & { schedules?: { id: number; date: Date; startTime: string; endTime: string }[] })?.schedules ?? [];
     return schedules.find((s) => s.id === scheduleId);
   }, [post, scheduleId]);
-
-  const mapUrl = useMemo(() => {
-    if (!post?.latitude || !post?.longitude) return null;
-    const { latitude, longitude } = post;
-    return `https://map.naver.com/v5/search/?c=${longitude},${latitude},16,0,0,0,dh`;
-  }, [post?.latitude, post?.longitude]);
 
   const kakaoMapUrl = useMemo(() => {
     if (!post?.latitude || !post?.longitude) return null;
@@ -174,30 +169,31 @@ export default function VolunteerApplyCompletePage() {
             {post.detailedLocation && (
               <p className="text-sm text-gray-600">{post.detailedLocation}</p>
             )}
-            <div className="rounded-lg border bg-gray-100 h-48 flex items-center justify-center">
-              <p className="text-sm text-gray-500">
-                📍 {post.address}
-                {post.latitude != null && post.longitude != null && (
-                  <span className="block mt-1 text-xs">
-                    좌표: {post.latitude.toFixed(5)}, {post.longitude.toFixed(5)}
-                  </span>
-                )}
-              </p>
-            </div>
+            {post.latitude != null && post.longitude != null ? (
+              <div className="rounded-lg overflow-hidden border">
+                <div className="w-full h-56">
+                  <MapView
+                    className="w-full h-full"
+                    initialCenter={{ lat: post.latitude, lng: post.longitude }}
+                    initialZoom={15}
+                    showMarker
+                  />
+                </div>
+                <div className="px-3 py-2 text-xs text-gray-500 bg-white border-t">
+                  좌표: {post.latitude.toFixed(5)}, {post.longitude.toFixed(5)}
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-lg border bg-gray-100 h-48 flex items-center justify-center">
+                <p className="text-sm text-gray-500">지도를 표시할 수 없습니다 (좌표 없음)</p>
+              </div>
+            )}
             <div className="flex gap-2">
-              {mapUrl && (
-                <Button variant="outline" size="sm" asChild>
-                  <a href={mapUrl} target="_blank" rel="noopener noreferrer">
-                    <ExternalLink className="w-4 h-4 mr-1" />
-                    네이버 지도
-                  </a>
-                </Button>
-              )}
               {kakaoMapUrl && (
                 <Button variant="outline" size="sm" asChild>
                   <a href={kakaoMapUrl} target="_blank" rel="noopener noreferrer">
                     <ExternalLink className="w-4 h-4 mr-1" />
-                    카카오 지도
+                    카카오 지도 열기
                   </a>
                 </Button>
               )}

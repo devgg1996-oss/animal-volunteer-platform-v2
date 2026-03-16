@@ -19,6 +19,7 @@ import { getImageSrc } from "@/lib/utils";
 import { trpc } from "@/lib/trpc";
 import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { ExternalLink } from "lucide-react";
 
 export default function VolunteerDetailPage() {
   const { user, isAuthenticated } = useAuth();
@@ -307,6 +308,18 @@ export default function VolunteerDetailPage() {
                     initialZoom={15}
                     showMarker
                   />
+                </div>
+                <div className="mt-3 flex gap-2">
+                  <Button variant="outline" size="sm" asChild>
+                    <a
+                      href={`https://map.kakao.com/link/map/봉사위치,${post.latitude},${post.longitude}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <ExternalLink className="w-4 h-4 mr-1" />
+                      카카오 지도 바로가기
+                    </a>
+                  </Button>
                 </div>
               </section>
             )}

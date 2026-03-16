@@ -28,9 +28,9 @@ import {
 } from "lucide-react";
 
 const STATUS_LABEL: Record<string, string> = {
-  PENDING: "신청완료",
-  APPROVED: "승인완료",
-  REJECTED: "승인거절",
+  PENDING: "승인대기",
+  APPROVED: "승인",
+  REJECTED: "거절",
   CANCELLED: "취소됨",
 };
 
@@ -160,6 +160,7 @@ export default function MyPage() {
                     width={64}
                     height={64}
                     className="object-cover"
+                    unoptimized
                   />
                 ) : (
                   <User className="w-8 h-8 text-orange-600" />
@@ -297,7 +298,7 @@ export default function MyPage() {
         <section>
           <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
             <Clock className="w-5 h-5 text-orange-600" />
-            나의 봉사 내역 (완료된 활동)
+            나의 봉사 내역
           </h2>
           {completed.length === 0 ? (
             <Card>
@@ -319,6 +320,9 @@ export default function MyPage() {
                         {formatDate(app.scheduleDate)} · {app.startTime} ~ {app.endTime}
                       </p>
                       <div className="flex items-center gap-2 mt-2">
+                        <Badge variant="secondary" className="text-xs">
+                          {STATUS_LABEL[app.status] ?? app.status}
+                        </Badge>
                         {app.attended === true && (
                           <Badge className="bg-green-600">참석</Badge>
                         )}

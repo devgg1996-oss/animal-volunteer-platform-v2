@@ -12,9 +12,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
 const STATUS_LABEL: Record<string, string> = {
-  PENDING: "승인 대기",
-  APPROVED: "승인 완료",
-  REJECTED: "거절됨",
+  PENDING: "승인대기",
+  APPROVED: "승인",
+  REJECTED: "거절",
   CANCELLED: "취소됨",
 };
 
@@ -54,10 +54,10 @@ export default function MyApplicationDetailPage() {
     return app?.scheduleId ? schedules.find((s) => s.id === app.scheduleId) : null;
   }, [post, app?.scheduleId]);
 
-  const mapUrl = useMemo(() => {
+  const kakaoMapUrl = useMemo(() => {
     if (!post?.latitude || !post?.longitude) return null;
     const { latitude, longitude } = post;
-    return `https://map.naver.com/v5/search/?c=${longitude},${latitude},16,0,0,0,dh`;
+    return `https://map.kakao.com/link/map/봉사위치,${latitude},${longitude}`;
   }, [post?.latitude, post?.longitude]);
 
   if (applicationId <= 0 || Number.isNaN(applicationId)) {
@@ -176,11 +176,11 @@ export default function MyApplicationDetailPage() {
               <p className="text-sm text-gray-500">선택한 일정 정보를 찾을 수 없습니다.</p>
             )}
 
-            {mapUrl && (
+            {kakaoMapUrl && (
               <Button variant="outline" size="sm" asChild>
-                <a href={mapUrl} target="_blank" rel="noopener noreferrer">
+                <a href={kakaoMapUrl} target="_blank" rel="noopener noreferrer">
                   <ExternalLink className="w-4 h-4 mr-1" />
-                  네이버 지도 열기
+                  카카오 지도 열기
                 </a>
               </Button>
             )}

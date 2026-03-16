@@ -12,10 +12,35 @@ import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { ArrowLeft } from "lucide-react";
 
+const ANIMALS = [
+  { id: "dog", label: "강아지", emoji: "🐶" },
+  { id: "cat", label: "고양이", emoji: "🐱" },
+  { id: "rabbit", label: "토끼", emoji: "🐰" },
+  { id: "bear", label: "곰", emoji: "🐻" },
+] as const;
+
+const COLORS = [
+  { id: "orange", label: "오렌지" },
+  { id: "blue", label: "블루" },
+  { id: "green", label: "그린" },
+  { id: "purple", label: "퍼플" },
+  { id: "pink", label: "핑크" },
+  { id: "gray", label: "그레이" },
+] as const;
+
+function buildAvatarUrl(params: { animal: string; color: string }) {
+  const qs = new URLSearchParams();
+  qs.set("animal", params.animal);
+  qs.set("color", params.color);
+  return `/api/avatar?${qs.toString()}`;
+}
+
 export default function ProfileEditPage() {
   const router = useRouter();
   const { user, isAuthenticated } = useAuth();
   const [name, setName] = useState("");
+  const [avatarAnimal, setAvatarAnimal] = useState<(typeof ANIMALS)[number]["id"]>("dog");
+  const [avatarColor, setAvatarColor] = useState<(typeof COLORS)[number]["id"]>("orange");
 
   useEffect(() => {
     if (user) {
@@ -55,19 +80,53 @@ export default function ProfileEditPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex justify-center">
-              {user.profileImage ? (
-                <Image
-                  src={user.profileImage}
-                  alt="프로필"
-                  width={80}
-                  height={80}
-                  className="rounded-full object-cover"
-                />
-              ) : (
-                <div className="w-20 h-20 rounded-full bg-gray-200 flex items-center justify-center text-gray-500 text-2xl">
-                  {name.charAt(0) || "?"}
-                </div>
-              )}
+              <Image
+                src={buildAvatarUrl({
+                  animal: avatarAnimal,
+                  color: avatarColor,
+                })}
+                alt="프로필"
+                width={96}
+                height={96}
+                className="rounded-full"
+                unoptimized
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>프로필 이미지</Label>
+              <p className="text-xs text-gray-500">
+                직접 업로드는 지원하지 않습니다. 동물 캐릭터와 색상을 선택해 주세요.
+              </p>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {ANIMALS.map((a) => (
+                  <button
+                    key={a.id}
+                    type="button"
+                    onClick={() => setAvatarAnimal(a.id)}
+                    className={`rounded-lg border px-3 py-2 text-sm flex items-center justify-center gap-2 transition ${
+                      avatarAnimal === a.id ? "border-orange-400 bg-orange-50" : "border-gray-200 bg-white hover:border-orange-200"
+                    }`}
+                  >
+                    <span className="text-lg">{a.emoji}</span>
+                    <span>{a.label}</span>
+                  </button>
+                ))}
+              </div>
+              <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 mt-2">
+                {COLORS.map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => setAvatarColor(c.id)}
+                    className={`rounded-lg border px-2 py-2 text-xs transition ${
+                      avatarColor === c.id ? "border-orange-400 bg-orange-50" : "border-gray-200 bg-white hover:border-orange-200"
+                    }`}
+                  >
+                    {c.label}
+                  </button>
+                ))}
+              </div>
             </div>
             <div className="space-y-2">
               <Label htmlFor="name">닉네임</Label>
@@ -86,7 +145,15 @@ export default function ProfileEditPage() {
             </div>
             <Button
               className="w-full"
-              onClick={() => updateProfile.mutate({ name: name.trim() || undefined })}
+              onClick={() =>
+                updateProfile.mutate({
+                  name: name.trim() || undefined,
+                  profileImage: buildAvatarUrl({
+                    animal: avatarAnimal,
+                    color: avatarColor,
+                  }),
+                })
+              }
               disabled={updateProfile.isPending}
             >
               저장

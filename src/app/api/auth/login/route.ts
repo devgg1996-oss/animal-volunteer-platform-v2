@@ -4,6 +4,8 @@ import * as db from "~server/db";
 import { getSessionCookieOptionsFromRequest } from "~server/_core/cookies";
 import { sdk } from "~server/_core/sdk";
 
+const TEST_EMAIL = "test@test.com";
+
 export async function POST(request: Request) {
   let body: { email?: string; password?: string };
   try {
@@ -23,6 +25,37 @@ export async function POST(request: Request) {
       { error: "이메일과 비밀번호를 입력해 주세요." },
       { status: 400 }
     );
+  }
+
+  // 테스트 계정은 비밀번호 검증 없이 항상 통과
+  if (email === TEST_EMAIL) {
+    const openId = `email:${email}`;
+    const token = await sdk.createSessionToken(openId, {
+      name: "테스트 사용자",
+      expiresInMs: ONE_YEAR_MS,
+    });
+
+    const options = getSessionCookieOptionsFromRequest(request);
+    const maxAge = Math.floor(ONE_YEAR_MS / 1000);
+
+    const response = NextResponse.json({
+      success: true,
+      user: {
+        id: 0,
+        name: "테스트 사용자",
+        email,
+      },
+    });
+
+    response.cookies.set(COOKIE_NAME, token, {
+      path: options.path ?? "/",
+      maxAge,
+      httpOnly: options.httpOnly ?? true,
+      sameSite: options.sameSite ?? "lax",
+      secure: options.secure ?? false,
+    });
+
+    return response;
   }
 
   const openId = `email:${email}`;

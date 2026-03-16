@@ -143,9 +143,9 @@ export default function Home() {
   }, [myRecentApplicationsWithStatus, selectedApplicationDate]);
 
   const applicationStatusLabel: Record<string, string> = {
-    PENDING: "승인 대기",
-    APPROVED: "승인완료",
-    REJECTED: "승인거절",
+    PENDING: "승인대기",
+    APPROVED: "승인",
+    REJECTED: "거절",
     CANCELLED: "취소됨",
   };
 
@@ -396,7 +396,7 @@ export default function Home() {
                           : "bg-amber-100 text-amber-700"
                       }`}
                     >
-                      {app.status === "APPROVED" ? "승인완료" : "승인 대기"}
+                      {app.status === "APPROVED" ? "승인" : "승인대기"}
                     </span>
                   </div>
                 </Card>
