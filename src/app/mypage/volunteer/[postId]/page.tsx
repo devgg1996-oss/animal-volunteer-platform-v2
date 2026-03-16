@@ -297,6 +297,11 @@ export default function MyVolunteerManagePage() {
                               {app.applicantName || `신청자 #${app.id}`}
                             </p>
                             <p className="text-sm text-gray-500">{app.applicantPhone}</p>
+                            {app.status === "REJECTED" && app.rejectionReason && (
+                              <p className="mt-1 text-xs text-red-600 whitespace-pre-wrap">
+                                거절 사유: {app.rejectionReason}
+                              </p>
+                            )}
                             <div className="mt-2 flex flex-wrap items-center gap-2">
                               <Badge
                                 variant={

@@ -409,7 +409,12 @@ export async function getApplicationsByPostId(postId: number): Promise<Applicati
   try {
     const list = await prisma.volunteerApplication.findMany({
       where: { volunteerPostId: BigInt(postId), deletedAt: null },
-      include: { timeSlots: { include: { timeSlot: true } } },
+      include: {
+        timeSlots: { include: { timeSlot: true } },
+        cancellations: {
+          orderBy: { createdAt: "desc" },
+        },
+      },
     });
     return list.map((a) => ({
       id: Number(a.id),
@@ -422,6 +427,12 @@ export async function getApplicationsByPostId(postId: number): Promise<Applicati
       attended: a.attended,
       attendanceStatus: a.attendanceStatus ?? null,
       createdAt: a.createdAt,
+      rejectionReason:
+        a.status === "REJECTED"
+          ? a.cancellations.find((c) => c.cancelledBy === "ORGANIZER")?.reason ??
+            a.cancellations[0]?.reason ??
+            null
+          : null,
     }));
   } catch {
     return [];

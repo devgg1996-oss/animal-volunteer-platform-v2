@@ -63,6 +63,9 @@ export default function VolunteerCreatePage() {
   const [orgName, setOrgName] = useState("");
   const [contactName, setContactName] = useState("");
   const [contactPhone, setContactPhone] = useState("");
+  const contactEmail = user?.email ?? "";
+  const [emailCode, setEmailCode] = useState("");
+  const [emailVerified, setEmailVerified] = useState(false);
   const [verified, setVerified] = useState(false);
 
   // Step 2
@@ -70,6 +73,8 @@ export default function VolunteerCreatePage() {
   const [description, setDescription] = useState("");
 
   const uploadStorage = trpc.storage.upload.useMutation();
+  const sendEmailVerification = trpc.auth.sendEmailVerification.useMutation();
+  const verifyEmail = trpc.auth.verifyEmail.useMutation();
   const uploadImage = useCallback(
     async (file: File): Promise<string> => {
       const fileBase64 = await fileToBase64(file);
@@ -113,12 +118,20 @@ export default function VolunteerCreatePage() {
   const addSchedule = trpc.volunteer.addSchedule.useMutation();
 
   const handleStep1Complete = () => {
-    if (!orgName.trim() || !contactName.trim() || !contactPhone.trim()) {
-      toast.error("단체명, 담당자 이름, 연락처를 모두 입력해주세요.");
+    if (!contactName.trim() || !contactPhone.trim()) {
+      toast.error("담당자 이름과 연락처를 모두 입력해주세요.");
+      return;
+    }
+    if (!contactEmail) {
+      toast.error("이메일 정보가 없습니다. 프로필에서 이메일을 먼저 등록해주세요.");
+      return;
+    }
+    if (!emailVerified) {
+      toast.error("이메일 인증을 완료해 주세요.");
       return;
     }
     setVerified(true);
-    toast.success("인증이 완료되었습니다.");
+    toast.success("담당자 정보 인증이 완료되었습니다.");
   };
 
   const canGoNext = useCallback(() => {
@@ -356,14 +369,20 @@ export default function VolunteerCreatePage() {
               {verified ? (
                 <div className="rounded-lg bg-green-50 border border-green-200 p-4 space-y-2">
                   <p className="font-medium text-green-800">인증 완료</p>
-                  <p className="text-sm text-green-700">단체명: {orgName}</p>
+                  {orgName && (
+                    <p className="text-sm text-green-700">단체명: {orgName}</p>
+                  )}
                   <p className="text-sm text-green-700">담당자: {contactName}</p>
                   <p className="text-sm text-green-700">연락처: {contactPhone}</p>
+                  <p className="text-sm text-green-700">이메일: {contactEmail}</p>
                 </div>
               ) : (
                 <>
                   <div className="space-y-2">
-                    <Label>단체명</Label>
+                    <Label>
+                      단체명
+                      <span className="ml-1 text-xs text-gray-400">(선택)</span>
+                    </Label>
                     <Input
                       placeholder="단체/센터 이름"
                       value={orgName}
@@ -371,7 +390,10 @@ export default function VolunteerCreatePage() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>담당자 이름</Label>
+                    <Label>
+                      담당자 이름
+                      <span className="ml-1 text-xs text-red-500">*</span>
+                    </Label>
                     <Input
                       placeholder="담당자 성함"
                       value={contactName}
@@ -379,15 +401,90 @@ export default function VolunteerCreatePage() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>연락처</Label>
+                    <Label>
+                      연락처
+                      <span className="ml-1 text-xs text-red-500">*</span>
+                    </Label>
                     <Input
                       placeholder="010-0000-0000"
                       value={contactPhone}
                       onChange={(e) => setContactPhone(e.target.value)}
                     />
                   </div>
+                  <div className="space-y-2">
+                    <Label>
+                      이메일
+                      <span className="ml-1 text-xs text-red-500">*</span>
+                    </Label>
+                    <Input value={contactEmail} disabled />
+                    {!contactEmail && (
+                      <p className="text-xs text-red-500 mt-1">
+                        프로필에서 이메일을 먼저 등록해 주세요. 이메일이 없으면 모집글을 등록할 수 없습니다.
+                      </p>
+                    )}
+                  </div>
+                  {contactEmail && (
+                    <div className="space-y-2">
+                      <Label>이메일 인증</Label>
+                      <div className="flex gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="flex-1"
+                          onClick={async () => {
+                            try {
+                              await sendEmailVerification.mutateAsync({ email: contactEmail });
+                              toast.success("인증 코드가 이메일로 발송되었습니다. 메일함을 확인해 주세요.");
+                            } catch (e) {
+                              toast.error(e instanceof Error ? e.message : "인증 코드 발송에 실패했습니다.");
+                            }
+                          }}
+                          disabled={sendEmailVerification.isPending || emailVerified}
+                        >
+                          {emailVerified
+                            ? "이메일 인증 완료"
+                            : sendEmailVerification.isPending
+                              ? "발송 중..."
+                              : "인증 코드 발송"}
+                        </Button>
+                      </div>
+                      {!emailVerified && (
+                        <div className="flex gap-2 mt-2">
+                          <Input
+                            placeholder="이메일로 받은 인증 코드를 입력하세요"
+                            value={emailCode}
+                            onChange={(e) => setEmailCode(e.target.value)}
+                          />
+                          <Button
+                            type="button"
+                            onClick={async () => {
+                              if (!emailCode.trim()) {
+                                toast.error("인증 코드를 입력해 주세요.");
+                                return;
+                              }
+                              try {
+                                await verifyEmail.mutateAsync({ email: contactEmail, code: emailCode.trim() });
+                                setEmailVerified(true);
+                                toast.success("이메일 인증이 완료되었습니다.");
+                              } catch (e) {
+                                toast.error(e instanceof Error ? e.message : "이메일 인증에 실패했습니다.");
+                              }
+                            }}
+                            disabled={verifyEmail.isPending}
+                          >
+                            {verifyEmail.isPending ? "인증 중..." : "인증하기"}
+                          </Button>
+                        </div>
+                      )}
+                      {emailVerified && (
+                        <p className="text-xs text-green-700 mt-1">
+                          이 이메일은 담당자 연락처로 사용되며, 수정할 수 없습니다.
+                        </p>
+                      )}
+                    </div>
+                  )}
                   <Button className="w-full" onClick={handleStep1Complete}>
-                    인증 완료
+                    담당자 정보 인증 완료
                   </Button>
                 </>
               )}
