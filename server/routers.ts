@@ -32,6 +32,7 @@ import {
   addBookmark,
   removeBookmark,
   updateUserProfile,
+  listAllVolunteerPosts,
   listUserLocations,
   getDefaultUserLocation,
   upsertUserLocation,
@@ -291,6 +292,11 @@ export const appRouter = router({
       .query(async ({ input }) => {
         return await searchVolunteerPostsByKeyword(input.keyword, input.latitude, input.longitude);
       }),
+
+    // 전체 봉사 모집글 (최신순)
+    listAll: publicProcedure.query(async () => {
+      return await listAllVolunteerPosts();
+    }),
 
     // 봉사 모집글 상세 조회
     getById: publicProcedure

@@ -1,153 +1,155 @@
-/**
- * GOOGLE MAPS FRONTEND INTEGRATION - ESSENTIAL GUIDE
- *
- * USAGE FROM PARENT COMPONENT:
- * ======
- *
- * const mapRef = useRef<google.maps.Map | null>(null);
- *
- * <MapView
- *   initialCenter={{ lat: 40.7128, lng: -74.0060 }}
- *   initialZoom={15}
- *   onMapReady={(map) => {
- *     mapRef.current = map; // Store to control map from parent anytime, google map itself is in charge of the re-rendering, not react state.
- * </MapView>
- *
- * ======
- * Available Libraries and Core Features:
- * -------------------------------
- * 📍 MARKER (from `marker` library)
- * - Attaches to map using { map, position }
- * new google.maps.marker.AdvancedMarkerElement({
- *   map,
- *   position: { lat: 37.7749, lng: -122.4194 },
- *   title: "San Francisco",
- * });
- *
- * -------------------------------
- * 🏢 PLACES (from `places` library)
- * - Does not attach directly to map; use data with your map manually.
- * const place = new google.maps.places.Place({ id: PLACE_ID });
- * await place.fetchFields({ fields: ["displayName", "location"] });
- * map.setCenter(place.location);
- * new google.maps.marker.AdvancedMarkerElement({ map, position: place.location });
- *
- * -------------------------------
- * 🧭 GEOCODER (from `geocoding` library)
- * - Standalone service; manually apply results to map.
- * const geocoder = new google.maps.Geocoder();
- * geocoder.geocode({ address: "New York" }, (results, status) => {
- *   if (status === "OK" && results[0]) {
- *     map.setCenter(results[0].geometry.location);
- *     new google.maps.marker.AdvancedMarkerElement({
- *       map,
- *       position: results[0].geometry.location,
- *     });
- *   }
- * });
- *
- * -------------------------------
- * 📐 GEOMETRY (from `geometry` library)
- * - Pure utility functions; not attached to map.
- * const dist = google.maps.geometry.spherical.computeDistanceBetween(p1, p2);
- *
- * -------------------------------
- * 🛣️ ROUTES (from `routes` library)
- * - Combines DirectionsService (standalone) + DirectionsRenderer (map-attached)
- * const directionsService = new google.maps.DirectionsService();
- * const directionsRenderer = new google.maps.DirectionsRenderer({ map });
- * directionsService.route(
- *   { origin, destination, travelMode: "DRIVING" },
- *   (res, status) => status === "OK" && directionsRenderer.setDirections(res)
- * );
- *
- * -------------------------------
- * 🌦️ MAP LAYERS (attach directly to map)
- * - new google.maps.TrafficLayer().setMap(map);
- * - new google.maps.TransitLayer().setMap(map);
- * - new google.maps.BicyclingLayer().setMap(map);
- *
- * -------------------------------
- * ✅ SUMMARY
- * - “map-attached” → AdvancedMarkerElement, DirectionsRenderer, Layers.
- * - “standalone” → Geocoder, DirectionsService, DistanceMatrixService, ElevationService.
- * - “data-only” → Place, Geometry utilities.
- */
-
-/// <reference types="@types/google.maps" />
-
 import { useEffect, useRef } from "react";
-import { usePersistFn } from "@/hooks/usePersistFn";
 import { cn } from "@/lib/utils";
-
-declare global {
-  interface Window {
-    google?: typeof google;
-  }
-}
-
-const API_KEY = process.env.NEXT_PUBLIC_FRONTEND_FORGE_API_KEY;
-const FORGE_BASE_URL =
-  process.env.NEXT_PUBLIC_FRONTEND_FORGE_API_URL ||
-  "https://forge.butterfly-effect.dev";
-const MAPS_PROXY_URL = `${FORGE_BASE_URL}/v1/maps/proxy`;
-
-function loadMapScript() {
-  return new Promise(resolve => {
-    const script = document.createElement("script");
-    script.src = `${MAPS_PROXY_URL}/maps/api/js?key=${API_KEY}&v=weekly&libraries=marker,places,geocoding,geometry`;
-    script.async = true;
-    script.crossOrigin = "anonymous";
-    script.onload = () => {
-      resolve(null);
-      script.remove(); // Clean up immediately
-    };
-    script.onerror = () => {
-      console.error("Failed to load Google Maps script");
-    };
-    document.head.appendChild(script);
-  });
-}
+import { ensureKakaoServicesLoaded, loadKakaoMap } from "@/lib/kakaoMap";
 
 interface MapViewProps {
   className?: string;
-  initialCenter?: google.maps.LatLngLiteral;
+  initialCenter?: { lat: number; lng: number };
   initialZoom?: number;
-  onMapReady?: (map: google.maps.Map) => void;
+  addressQuery?: string;
+  showMarker?: boolean;
+  onMapReady?: (map: unknown) => void;
+  onError?: (error: unknown) => void;
+  onLocationResolved?: (loc: { lat: number; lng: number; addressName?: string }) => void;
+}
+
+function clamp(n: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, n));
+}
+
+// 카카오 level: 1(가까움) ~ 14(멀리). Google zoom과 1:1이 아니라서 "대략" 매핑.
+function zoomToKakaoLevel(zoom: number) {
+  // zoom 15 -> level 1, zoom 12 -> level 4, zoom 8 -> level 8 근처
+  const level = Math.round(16 - zoom);
+  return clamp(level, 1, 14);
+}
+
+function createDefaultMarkerImage(kakao: any) {
+  // 주황색 핀(SVG) - 배달앱 느낌으로 통일
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="40" height="44" viewBox="0 0 40 44">
+  <path d="M20 43c8-12 14-20 14-28C34 6.7 27.7 0 20 0S6 6.7 6 15c0 8 6 16 14 28z" fill="#F97316"/>
+  <circle cx="20" cy="15" r="6.5" fill="#ffffff"/>
+  </svg>`;
+  const url = `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+  const imageSize = new kakao.maps.Size(28, 32);
+  const imageOption = { offset: new kakao.maps.Point(14, 32) };
+  return new kakao.maps.MarkerImage(url, imageSize, imageOption);
 }
 
 export function MapView({
   className,
   initialCenter = { lat: 37.7749, lng: -122.4194 },
   initialZoom = 12,
+  addressQuery,
+  showMarker = true,
   onMapReady,
+  onError,
+  onLocationResolved,
 }: MapViewProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
-  const map = useRef<google.maps.Map | null>(null);
-
-  const init = usePersistFn(async () => {
-    await loadMapScript();
-    if (!mapContainer.current) {
-      console.error("Map container not found");
-      return;
-    }
-    map.current = new window.google.maps.Map(mapContainer.current, {
-      zoom: initialZoom,
-      center: initialCenter,
-      mapTypeControl: true,
-      fullscreenControl: true,
-      zoomControl: true,
-      streetViewControl: true,
-      mapId: "DEMO_MAP_ID",
-    });
-    if (onMapReady) {
-      onMapReady(map.current);
-    }
-  });
+  const map = useRef<any | null>(null);
+  const marker = useRef<any | null>(null);
+  const geocoder = useRef<any | null>(null);
 
   useEffect(() => {
-    init();
-  }, [init]);
+    let cancelled = false;
+    (async () => {
+      const kakao = await loadKakaoMap();
+      if (cancelled) return;
+      if (!mapContainer.current) return;
+
+      const center = new kakao.maps.LatLng(initialCenter.lat, initialCenter.lng);
+      map.current = new kakao.maps.Map(mapContainer.current, {
+        center,
+        level: zoomToKakaoLevel(initialZoom),
+      });
+
+      await ensureKakaoServicesLoaded();
+      if (kakao.maps.services && kakao.maps.services.Geocoder) {
+        geocoder.current = new kakao.maps.services.Geocoder();
+      } else {
+        console.warn("Kakao maps services.Geocoder is not available");
+        geocoder.current = null;
+      }
+
+      if (showMarker) {
+        marker.current = new kakao.maps.Marker({
+          position: center,
+          image: createDefaultMarkerImage(kakao),
+        });
+        marker.current.setMap(map.current);
+      }
+
+      onMapReady?.(map.current);
+    })().catch((e) => {
+      // 지도 로드 실패 시: MapPreview가 fallback 처리
+      console.error("Kakao map failed to initialize", e);
+      onError?.(e);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [initialCenter.lat, initialCenter.lng, initialZoom, onMapReady, showMarker, onError]);
+
+  useEffect(() => {
+    if (!map.current || !window.kakao?.maps) return;
+    const kakao = window.kakao;
+    const center = new kakao.maps.LatLng(initialCenter.lat, initialCenter.lng);
+    map.current.setCenter(center);
+    map.current.setLevel(zoomToKakaoLevel(initialZoom));
+    if (marker.current) marker.current.setPosition(center);
+    if (showMarker && !marker.current) {
+      marker.current = new kakao.maps.Marker({
+        position: center,
+        image: createDefaultMarkerImage(kakao),
+      });
+      marker.current.setMap(map.current);
+    }
+    if (!showMarker && marker.current) {
+      marker.current.setMap(null);
+      marker.current = null;
+    }
+  }, [initialCenter.lat, initialCenter.lng, initialZoom, showMarker]);
+
+  useEffect(() => {
+    const q = addressQuery?.trim();
+    if (!q) return;
+    if (!map.current || !window.kakao?.maps || !geocoder.current) return;
+    const kakao = window.kakao;
+
+    geocoder.current.addressSearch(q, (results: any[], status: string) => {
+      if (status !== kakao.maps.services.Status.OK || !Array.isArray(results) || !results[0]) {
+        // 주소 검색 실패는 치명적 에러가 아니므로 지도 fallback으로 전환하지 않는다.
+        console.warn("Kakao geocoder: 주소로 위치를 찾을 수 없습니다.", q);
+        return;
+      }
+      const lat = parseFloat(results[0]?.y);
+      const lng = parseFloat(results[0]?.x);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+        console.warn("Kakao geocoder: 주소 좌표 변환에 실패했습니다.", results[0]);
+        return;
+      }
+      const center = new kakao.maps.LatLng(lat, lng);
+      map.current.setCenter(center);
+      if (showMarker) {
+        if (!marker.current) {
+          marker.current = new kakao.maps.Marker({
+            position: center,
+            image: createDefaultMarkerImage(kakao),
+          });
+          marker.current.setMap(map.current);
+        } else {
+          marker.current.setPosition(center);
+        }
+      }
+      const addrName = results[0]?.address_name as string | undefined;
+      if (addrName) {
+        onLocationResolved?.({ lat, lng, addressName: addrName });
+      } else {
+        onLocationResolved?.({ lat, lng });
+      }
+    });
+  }, [addressQuery, showMarker, onError, onLocationResolved]);
 
   return (
     <div ref={mapContainer} className={cn("w-full h-[500px]", className)} />

@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { MapPin } from "lucide-react";
-import { searchAddress, type AddressSearchResult } from "@/lib/addressSearch";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
+import { searchAddress } from "@/lib/addressSearch";
 
 export type AddressValue = {
   address: string;
@@ -18,8 +18,6 @@ export type AddressValue = {
 type AddressSearchWithMapProps = {
   value: AddressValue;
   onChange: (value: AddressValue) => void;
-  /** 주소 검색 시 사용할 함수. 기본값은 @/lib/addressSearch.searchAddress (연동 전에는 빈 배열 반환) */
-  onSearchAddress?: (query: string) => Promise<AddressSearchResult[]>;
   /** 지도 미리보기 영역 높이 */
   mapHeight?: number;
   className?: string;
@@ -35,38 +33,38 @@ type AddressSearchWithMapProps = {
 export function AddressSearchWithMap({
   value,
   onChange,
-  onSearchAddress = searchAddress,
   mapHeight = 200,
   className,
 }: AddressSearchWithMapProps) {
-  const [results, setResults] = useState<AddressSearchResult[]>([]);
   const [searching, setSearching] = useState(false);
 
-  const handleSearch = useCallback(async () => {
-    const query = value.address.trim();
-    if (!query) return;
+  const handleSearch = async () => {
+    const q = value.address.trim();
+    if (!q) {
+      toast.error("주소를 입력해 주세요.");
+      return;
+    }
     setSearching(true);
-    setResults([]);
     try {
-      const list = await onSearchAddress(query);
-      setResults(list);
+      const results = await searchAddress(q);
+      const first = results[0];
+      if (!first) {
+        toast.error("주소를 찾을 수 없습니다.");
+        return;
+      }
+      onChange({
+        ...value,
+        address: first.roadAddress ?? first.address,
+        latitude: first.latitude,
+        longitude: first.longitude,
+      });
+      toast.success("주소가 설정되었습니다.");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "주소 검색에 실패했습니다.");
     } finally {
       setSearching(false);
     }
-  }, [onSearchAddress, value.address]);
-
-  const selectResult = useCallback(
-    (r: AddressSearchResult) => {
-      onChange({
-        ...value,
-        address: r.roadAddress ?? r.address,
-        latitude: r.latitude,
-        longitude: r.longitude,
-      });
-      setResults([]);
-    },
-    [value, onChange]
-  );
+  };
 
   const hasCoords = value.latitude != null && value.longitude != null;
   const mapCenter = hasCoords
@@ -76,36 +74,24 @@ export function AddressSearchWithMap({
   return (
     <div className={cn("space-y-4", className)}>
       <div className="space-y-2">
-        <Label>주소 검색</Label>
+        <Label>주소</Label>
         <div className="flex gap-2">
           <Input
-            placeholder="주소를 입력한 뒤 검색"
+            placeholder="예: 서울시 강남구 테헤란로"
             value={value.address}
-            onChange={(e) => onChange({ ...value, address: e.target.value })}
+            onChange={(e) =>
+              onChange({
+                ...value,
+                address: e.target.value,
+              })
+            }
             onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleSearch())}
           />
-          <Button type="button" variant="outline" onClick={handleSearch} disabled={searching}>
-            {searching ? "검색 중..." : "주소 검색"}
+          <Button type="button" onClick={handleSearch} disabled={searching}>
+            {searching ? "검색 중..." : "검색"}
           </Button>
         </div>
       </div>
-
-      {results.length > 0 && (
-        <ul className="border rounded-lg divide-y max-h-48 overflow-y-auto">
-          {results.map((r, i) => (
-            <li key={i}>
-              <button
-                type="button"
-                className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 flex items-center gap-2"
-                onClick={() => selectResult(r)}
-              >
-                <MapPin className="w-4 h-4 text-orange-500 shrink-0" />
-                <span>{r.roadAddress ?? r.address}</span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
 
       <div className="space-y-2">
         <Label>상세 위치 설명 (선택)</Label>
@@ -123,6 +109,14 @@ export function AddressSearchWithMap({
           height={mapHeight}
           hasLocation={hasCoords}
           addressText={value.address}
+          onLocationResolved={(loc) => {
+            onChange({
+              ...value,
+              address: loc.addressName ?? value.address,
+              latitude: loc.lat,
+              longitude: loc.lng,
+            });
+          }}
         />
       </div>
     </div>
@@ -140,31 +134,38 @@ function MapPreview({
   height,
   hasLocation,
   addressText,
+  onLocationResolved,
 }: {
   center: { lat: number; lng: number };
   height: number;
   hasLocation: boolean;
   addressText: string;
+  onLocationResolved?: (loc: { lat: number; lng: number; addressName?: string }) => void;
 }) {
-  const forgeKey =
-    typeof process !== "undefined" && !!process.env.NEXT_PUBLIC_FRONTEND_FORGE_API_KEY;
+  const kakaoKey =
+    typeof process !== "undefined" && !!process.env.NEXT_PUBLIC_KAKAO_MAP_APP_KEY;
 
   const [MapView, setMapView] = useState<React.ComponentType<{
     className?: string;
     initialCenter?: { lat: number; lng: number };
     initialZoom?: number;
+    addressQuery?: string;
+    showMarker?: boolean;
     onMapReady?: (map: unknown) => void;
+    onError?: (error: unknown) => void;
+    onLocationResolved?: (loc: { lat: number; lng: number; addressName?: string }) => void;
   }> | null>(null);
   const [mapError, setMapError] = useState(false);
 
   useEffect(() => {
-    if (!forgeKey || mapError) return;
+    if (!kakaoKey || mapError) return;
     import("@/components/Map")
       .then((m) => setMapView(() => m.MapView))
       .catch(() => setMapError(true));
-  }, [forgeKey, mapError]);
+  }, [kakaoKey, mapError]);
 
-  const showLiveMap = forgeKey && MapView && hasLocation;
+  const canShowMap = kakaoKey && MapView && (hasLocation || !!addressText.trim());
+  const showLiveMap = canShowMap && !mapError;
 
   return (
     <div
@@ -177,18 +178,34 @@ function MapPreview({
             className="w-full h-full"
             initialCenter={center}
             initialZoom={15}
+            addressQuery={!hasLocation ? addressText : undefined}
+            showMarker={hasLocation || !!addressText.trim()}
+            onError={() => setMapError(true)}
+            onLocationResolved={onLocationResolved}
           />
         </div>
       ) : (
         <div className="p-4 text-center text-sm text-gray-500 w-full">
-          {hasLocation ? (
+          {mapError ? (
+            <>
+              <p className="font-medium text-gray-700 mb-1">지도를 불러올 수 없습니다</p>
+              <p className="text-xs mt-1">
+                카카오 지도 설정을 확인해 주세요. (도메인 등록 / API 키)
+              </p>
+              {hasLocation && (
+                <p className="text-xs mt-2">
+                  좌표: {center.lat.toFixed(5)}, {center.lng.toFixed(5)}
+                </p>
+              )}
+            </>
+          ) : hasLocation ? (
             <>
               <p className="font-medium text-gray-700 mb-1">📍 {addressText}</p>
               <p className="text-xs">
                 좌표: {center.lat.toFixed(5)}, {center.lng.toFixed(5)}
               </p>
               <p className="text-xs mt-2">
-                지도 API 키를 설정하면 여기에 지도가 표시됩니다.
+                카카오 지도 API 키를 설정하면 여기에 지도가 표시됩니다.
               </p>
             </>
           ) : (

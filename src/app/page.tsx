@@ -67,11 +67,7 @@ export default function Home() {
         setLocation({ latitude: lat, longitude: lng });
       }
       setAddress(defaultMyLocation.formattedAddress ?? defaultMyLocation.address1 ?? "");
-      return;
     }
-    // 비로그인/기본주소 없음: 기존 기본값 유지
-    setLocation({ latitude: 37.4979, longitude: 127.0276 });
-    setAddress("서울시 강남구 (기본 위치)");
   }, [isAuthenticated, defaultMyLocation]);
 
   const searchByLocation = trpc.volunteer.searchByLocation.useQuery(
@@ -85,6 +81,11 @@ export default function Home() {
       : skipToken,
     { enabled: !!location, refetchInterval: 30000 }
   );
+
+  const listAll = trpc.volunteer.listAll.useQuery(undefined, {
+    enabled: !location,
+    refetchOnWindowFocus: false,
+  });
 
   const { data: myApplications = [] } = trpc.application.getMyApplicationsWithDetails.useQuery(
     undefined,
@@ -116,15 +117,16 @@ export default function Home() {
   };
 
   const posts: PostCard[] = useMemo(() => {
-    const raw = searchByLocation.data ?? [];
+    const raw = location ? searchByLocation.data ?? [] : listAll.data ?? [];
     return raw.map((p) => ({
       ...p,
       authorName: (p as { authorName?: string }).authorName,
       earliestDate: (p as { earliestDate?: Date | null }).earliestDate,
       durationText: (p as { durationText?: string | null }).durationText,
       hasRequiredItems: (p as { hasRequiredItems?: boolean }).hasRequiredItems,
+      distance: (p as { distance?: number }).distance ?? 0,
     }));
-  }, [searchByLocation.data]);
+  }, [location, searchByLocation.data, listAll.data]);
 
   const handleGetCurrentLocation = () => {
     setLocationLoading(true);
@@ -357,25 +359,14 @@ export default function Home() {
 
         {/* 주변 봉사 모집글 */}
         <section>
-          <h2 className="text-base font-semibold text-gray-800 mb-3">주변 봉사 모집</h2>
-          {!location ? (
-            <div className="py-12 text-center">
-              <AlertCircle className="w-14 h-14 text-orange-300 mx-auto mb-3" />
-              <p className="text-gray-600 font-medium">위치를 설정해주세요</p>
-              <p className="text-sm text-gray-500 mt-1">주변 봉사 기회를 찾기 위해 위치 설정이 필요합니다</p>
-              <Button
-                className="mt-4 bg-orange-600 hover:bg-orange-700 text-white"
-                onClick={handleGetCurrentLocation}
-                disabled={locationLoading}
-              >
-                {locationLoading ? "확인 중..." : "현재 위치로 설정"}
-              </Button>
-            </div>
-          ) : searchByLocation.isLoading ? (
+          <h2 className="text-base font-semibold text-gray-800 mb-3">
+            {location ? "주변 봉사 모집" : "전체 봉사 모집"}
+          </h2>
+          {location ? searchByLocation.isLoading : listAll.isLoading ? (
             <div className="py-12 text-center text-gray-500">불러오는 중...</div>
           ) : posts.length === 0 ? (
             <div className="py-12 text-center text-gray-500">
-              <p>주변에 모집 중인 봉사가 없습니다</p>
+              <p>현재 모집 중인 봉사가 없습니다</p>
               <p className="text-sm mt-1">위치를 바꾸거나 검색에서 찾아보세요</p>
             </div>
           ) : (

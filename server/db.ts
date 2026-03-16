@@ -510,6 +510,42 @@ export async function searchVolunteerPostsByKeyword(
   }
 }
 
+export async function listAllVolunteerPosts(): Promise<VolunteerPostView[]> {
+  try {
+    const posts = await prisma.volunteerPost.findMany({
+      where: { status: "RECRUITING", deletedAt: null },
+      include: {
+        timeSlots: { where: { deletedAt: null }, orderBy: { date: "asc" } },
+        authorUser: true,
+      },
+      orderBy: { createdAt: "desc" },
+    });
+    return posts.map((p) => {
+      const firstSlot = p.timeSlots[0];
+      return {
+        id: Number(p.id),
+        authorId: Number(p.authorUserId),
+        title: p.title,
+        description: p.description,
+        category: "other",
+        shelterName: p.shelterName,
+        address: p.formattedAddress ?? p.address1 ?? "",
+        detailedLocation: p.address2 ?? null,
+        thumbnailImage: p.thumbnailImageUrl ?? null,
+        latitude: p.lat ?? 0,
+        longitude: p.lng ?? 0,
+        status: p.status,
+        maxParticipants: p.timeSlots.reduce((s, t) => s + (t.maxParticipants ?? 0), 0),
+        currentApplications: 0,
+        createdAt: p.createdAt,
+        updatedAt: p.updatedAt,
+      } satisfies VolunteerPostView & { distance?: number; earliestDate?: Date | null; durationText?: string | null; hasRequiredItems?: boolean | undefined };
+    });
+  } catch {
+    return [];
+  }
+}
+
 // --- Mutations ---
 
 export type CreateVolunteerPostInput = {
