@@ -52,9 +52,12 @@ export default function Home() {
   const [address, setAddress] = useState("");
   const [category, setCategory] = useState<string>("all");
   const [sortBy, setSortBy] = useState<"distance" | "recent">("distance");
-  const [locationLoading, setLocationLoading] = useState(false);
+  const [selectedLocationId, setSelectedLocationId] = useState<number | "">("");
 
   const { data: defaultMyLocation } = trpc.userLocation.getDefault.useQuery(undefined, {
+    enabled: isAuthenticated,
+  });
+  const { data: myLocations = [] } = trpc.userLocation.listMy.useQuery(undefined, {
     enabled: isAuthenticated,
   });
 
@@ -67,6 +70,7 @@ export default function Home() {
         setLocation({ latitude: lat, longitude: lng });
       }
       setAddress(defaultMyLocation.formattedAddress ?? defaultMyLocation.address1 ?? "");
+      setSelectedLocationId(defaultMyLocation.id);
     }
   }, [isAuthenticated, defaultMyLocation]);
 
@@ -127,28 +131,6 @@ export default function Home() {
       distance: (p as { distance?: number }).distance ?? 0,
     }));
   }, [location, searchByLocation.data, listAll.data]);
-
-  const handleGetCurrentLocation = () => {
-    setLocationLoading(true);
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const { latitude, longitude } = position.coords;
-          setLocation({ latitude, longitude });
-          setAddress(`${latitude.toFixed(4)}, ${longitude.toFixed(4)}`);
-          setLocationLoading(false);
-          toast.success("위치가 설정되었습니다");
-        },
-        () => {
-          toast.error("위치를 가져올 수 없습니다");
-          setLocationLoading(false);
-        }
-      );
-    } else {
-      toast.error("브라우저가 위치 서비스를 지원하지 않습니다");
-      setLocationLoading(false);
-    }
-  };
 
   const handleCreatePost = () => {
     if (!isAuthenticated) {
@@ -226,26 +208,55 @@ export default function Home() {
               주소 관리
             </Button>
           </div>
-          <div className="flex gap-2">
-            <Input
-              placeholder="주소 검색 또는 현재 위치 사용"
-              value={address}
-              onChange={(e) => setAddress(e.target.value)}
-              className="flex-1 bg-white"
-            />
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleGetCurrentLocation}
-              disabled={locationLoading}
-              className="shrink-0 border-orange-200 text-orange-600 hover:bg-orange-50"
-            >
-              {locationLoading ? "확인 중..." : "현재 위치"}
-            </Button>
-          </div>
-          {location && (
+          {isAuthenticated && myLocations.length > 0 ? (
+            <>
+              <select
+                value={selectedLocationId}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  const id = v === "" ? "" : Number(v);
+                  setSelectedLocationId(id);
+                  const locItem = myLocations.find((l) => l.id === id);
+                  if (locItem && locItem.latitude != null && locItem.longitude != null) {
+                    setLocation({ latitude: locItem.latitude, longitude: locItem.longitude });
+                    setAddress(locItem.formattedAddress ?? locItem.address1 ?? "");
+                  } else {
+                    // 좌표가 없으면 위치 기반 검색 해제 (전체 보기)
+                    setLocation(null);
+                    setAddress(locItem?.formattedAddress ?? locItem?.address1 ?? "");
+                  }
+                }}
+                className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700"
+              >
+                <option value="">전체 지역 보기</option>
+                {myLocations.map((loc) => (
+                  <option key={loc.id} value={loc.id}>
+                    {loc.name} · {loc.formattedAddress ?? loc.address1 ?? ""}
+                  </option>
+                ))}
+              </select>
+              {location && (
+                <p className="text-xs text-gray-500 mt-1">
+                  📍 {address || `${location.latitude.toFixed(4)}, ${location.longitude.toFixed(4)}`}
+                </p>
+              )}
+            </>
+          ) : (
             <p className="text-xs text-gray-500 mt-1">
-              📍 {address || `${location.latitude.toFixed(4)}, ${location.longitude.toFixed(4)}`}
+              저장된 주소가 없습니다.{" "}
+              <button
+                type="button"
+                className="underline text-orange-600"
+                onClick={() => {
+                  if (!isAuthenticated) {
+                    router.push("/login");
+                  } else {
+                    router.push("/mypage/addresses");
+                  }
+                }}
+              >
+                주소 관리에서 주소를 추가해 주세요.
+              </button>
             </p>
           )}
         </section>
