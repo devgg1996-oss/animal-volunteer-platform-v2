@@ -6,7 +6,8 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { searchAddress } from "@/lib/addressSearch";
+import { searchAddress, type AddressSearchResult } from "@/lib/addressSearch";
+import { MapPin } from "lucide-react";
 
 export type AddressValue = {
   address: string;
@@ -37,6 +38,7 @@ export function AddressSearchWithMap({
   className,
 }: AddressSearchWithMapProps) {
   const [searching, setSearching] = useState(false);
+  const [results, setResults] = useState<AddressSearchResult[]>([]);
 
   const handleSearch = async () => {
     const q = value.address.trim();
@@ -46,8 +48,9 @@ export function AddressSearchWithMap({
     }
     setSearching(true);
     try {
-      const results = await searchAddress(q);
-      const first = results[0];
+      const list = await searchAddress(q);
+      setResults(list);
+      const first = list[0];
       if (!first) {
         toast.error("주소를 찾을 수 없습니다.");
         return;
@@ -92,6 +95,30 @@ export function AddressSearchWithMap({
           </Button>
         </div>
       </div>
+
+      {results.length > 0 && (
+        <ul className="border rounded-lg divide-y max-h-48 overflow-y-auto">
+          {results.map((r, i) => (
+            <li key={i}>
+              <button
+                type="button"
+                className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 flex items-center gap-2"
+                onClick={() =>
+                  onChange({
+                    ...value,
+                    address: r.roadAddress ?? r.address,
+                    latitude: r.latitude,
+                    longitude: r.longitude,
+                  })
+                }
+              >
+                <MapPin className="w-4 h-4 text-orange-500 shrink-0" />
+                <span>{r.roadAddress ?? r.address}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
 
       <div className="space-y-2">
         <Label>상세 위치 설명 (선택)</Label>
