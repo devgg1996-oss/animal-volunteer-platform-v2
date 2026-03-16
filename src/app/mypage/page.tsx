@@ -379,12 +379,22 @@ export default function MyPage() {
           </Card>
         </section>
 
-        {/* 5. 내가 작성한 봉사 구인글 */}
+        {/* 5. 내가 작성한 봉사 구인글 (요약) */}
         <section>
-          <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
-            <FileText className="w-5 h-5 text-orange-600" />
-            내가 작성한 봉사 구인글
-          </h2>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              <FileText className="w-5 h-5 text-orange-600" />
+              내가 작성한 봉사 구인글
+            </h2>
+            <Button
+              variant="outline"
+              size="xs"
+              className="text-xs h-7 px-2"
+              onClick={() => router.push("/mypage/my-posts")}
+            >
+              전체 보기
+            </Button>
+          </div>
           {postsLoading ? (
             <p className="text-sm text-gray-500">불러오는 중...</p>
           ) : myPosts.length === 0 ? (
@@ -395,7 +405,7 @@ export default function MyPage() {
             </Card>
           ) : (
             <ul className="space-y-3">
-              {myPosts.map((post) => (
+              {myPosts.slice(0, 3).map((post) => (
                 <li key={post.id}>
                   <Card
                     className="cursor-pointer hover:border-orange-300 transition-colors"
@@ -418,6 +428,18 @@ export default function MyPage() {
                   </Card>
                 </li>
               ))}
+              {myPosts.length > 3 && (
+                <li>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-full text-xs text-gray-600"
+                    onClick={() => router.push("/mypage/my-posts")}
+                  >
+                    나머지 {myPosts.length - 3}개 구인글 더 보기
+                  </Button>
+                </li>
+              )}
             </ul>
           )}
         </section>
