@@ -133,6 +133,14 @@ export default function MyApplicationDetailPage() {
                 {new Date(app.createdAt).toLocaleString("ko-KR")}
               </span>
             </div>
+            {app.status === "REJECTED" && app.rejectionReason && (
+              <div className="pt-2 border-t border-dashed border-gray-200 mt-2">
+                <span className="text-gray-500 block mb-1">거절 사유</span>
+                <p className="text-sm text-gray-800 whitespace-pre-wrap">
+                  {app.rejectionReason}
+                </p>
+              </div>
+            )}
           </CardContent>
         </Card>
 

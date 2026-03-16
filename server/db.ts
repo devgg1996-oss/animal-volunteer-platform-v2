@@ -432,9 +432,16 @@ export async function getApplicationById(id: number): Promise<ApplicationView | 
   try {
     const a = await prisma.volunteerApplication.findFirst({
       where: { id: BigInt(id), deletedAt: null },
-      include: { timeSlots: true },
+      include: {
+        timeSlots: true,
+        cancellations: {
+          orderBy: { createdAt: "desc" },
+          take: 1,
+        },
+      },
     });
     if (!a) return undefined;
+    const latestCancellation = a.cancellations?.[0];
     return {
       id: Number(a.id),
       userId: Number(a.userId),
@@ -446,6 +453,7 @@ export async function getApplicationById(id: number): Promise<ApplicationView | 
       attended: a.attended,
       attendanceStatus: a.attendanceStatus ?? null,
       createdAt: a.createdAt,
+      rejectionReason: a.status === "REJECTED" ? latestCancellation?.reason ?? null : null,
     };
   } catch {
     return undefined;
@@ -481,7 +489,16 @@ export async function getPostsByAuthorId(authorId: number): Promise<VolunteerPos
   try {
     const posts = await prisma.volunteerPost.findMany({
       where: { authorUserId: BigInt(authorId), deletedAt: null },
-      include: { timeSlots: { where: { deletedAt: null } } },
+      include: {
+        timeSlots: { where: { deletedAt: null } },
+        applications: {
+          where: {
+            deletedAt: null,
+            status: { in: ["PENDING", "APPROVED"] },
+          },
+          select: { id: true },
+        },
+      },
       orderBy: { createdAt: "desc" },
     });
     return posts.map((p) => ({
@@ -498,7 +515,8 @@ export async function getPostsByAuthorId(authorId: number): Promise<VolunteerPos
       longitude: p.lng ?? 0,
       status: p.status,
       maxParticipants: p.timeSlots.reduce((s, t) => s + (t.maxParticipants ?? 0), 0),
-      currentApplications: 0,
+      // 신청자 수는 실시간 집계 (거절/취소 시 자동 감소)
+      currentApplications: p.applications?.length ?? 0,
       createdAt: p.createdAt,
       updatedAt: p.updatedAt,
     }));
@@ -1020,7 +1038,8 @@ export async function setDefaultUserLocation(userId: number, locationId: number)
 export async function updateApplicationStatus(
   applicationId: number,
   status: "APPROVED" | "REJECTED",
-  postAuthorUserId: number
+  postAuthorUserId: number,
+  reason?: string | null
 ): Promise<void> {
   const app = await prisma.volunteerApplication.findFirst({
     where: { id: BigInt(applicationId), deletedAt: null },
@@ -1033,6 +1052,16 @@ export async function updateApplicationStatus(
     where: { id: BigInt(applicationId) },
     data: { status },
   });
+  if (status === "REJECTED" && reason && reason.trim()) {
+    await prisma.volunteerApplicationCancellation.create({
+      data: {
+        guid: guid(),
+        applicationId: app.id,
+        reason: reason.trim(),
+        cancelledBy: "ORGANIZER",
+      },
+    });
+  }
 }
 
 /** 신청자가 본인 신청 취소 */
@@ -1047,6 +1076,14 @@ export async function cancelApplicationByApplicant(
   await prisma.volunteerApplication.update({
     where: { id: BigInt(applicationId) },
     data: { status: "CANCELLED" },
+  });
+  await prisma.volunteerApplicationCancellation.create({
+    data: {
+      guid: guid(),
+      applicationId: app.id,
+      reason: null,
+      cancelledBy: "APPLICANT",
+    },
   });
 }
 
@@ -1145,6 +1182,86 @@ export async function getReviewsByUserId(userId: number): Promise<ReviewView[]> 
     reviewType: r.reviewType,
     createdAt: r.createdAt,
   }));
+}
+
+export type ReceivedVolunteerReviewView = {
+  id: number;
+  rating: number;
+  comment: string | null;
+  reviewType: "PARTICIPANT_TO_ORGANIZER" | "ORGANIZER_TO_PARTICIPANT";
+  createdAt: Date;
+  writerId: number;
+  writerName: string;
+  volunteerPostId: number | null;
+  volunteerPostTitle: string | null;
+};
+
+/** 참여자가 받은 평가(주최자→참여자)만 조회 */
+export async function getMyReceivedVolunteerReviews(userId: number): Promise<ReceivedVolunteerReviewView[]> {
+  const group = await prisma.reputationGroup.findFirst({
+    where: { userId: BigInt(userId), deletedAt: null },
+  });
+  if (!group) return [];
+
+  const list = await prisma.review.findMany({
+    where: {
+      reputationGroupId: group.id,
+      deletedAt: null,
+      reviewType: "ORGANIZER_TO_PARTICIPANT",
+    },
+    include: {
+      writer: { select: { id: true, name: true } },
+      volunteerPost: { select: { id: true, title: true } },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+  return list.map((r) => ({
+    id: Number(r.id),
+    rating: r.rating,
+    comment: r.comment,
+    reviewType: r.reviewType,
+    createdAt: r.createdAt,
+    writerId: Number(r.writerId),
+    writerName: r.writer?.name ?? "",
+    volunteerPostId: r.volunteerPostId != null ? Number(r.volunteerPostId) : null,
+    volunteerPostTitle: r.volunteerPost?.title ?? null,
+  }));
+}
+
+export async function getMyReceivedVolunteerReviewById(
+  userId: number,
+  reviewId: number
+): Promise<ReceivedVolunteerReviewView | undefined> {
+  const group = await prisma.reputationGroup.findFirst({
+    where: { userId: BigInt(userId), deletedAt: null },
+  });
+  if (!group) return undefined;
+
+  const r = await prisma.review.findFirst({
+    where: {
+      id: BigInt(reviewId),
+      reputationGroupId: group.id,
+      deletedAt: null,
+      reviewType: "ORGANIZER_TO_PARTICIPANT",
+    },
+    include: {
+      writer: { select: { id: true, name: true } },
+      volunteerPost: { select: { id: true, title: true } },
+    },
+  });
+  if (!r) return undefined;
+  return {
+    id: Number(r.id),
+    rating: r.rating,
+    comment: r.comment,
+    reviewType: r.reviewType,
+    createdAt: r.createdAt,
+    writerId: Number(r.writerId),
+    writerName: r.writer?.name ?? "",
+    volunteerPostId: r.volunteerPostId != null ? Number(r.volunteerPostId) : null,
+    volunteerPostTitle: r.volunteerPost?.title ?? null,
+  };
 }
 
 async function ensureReputationGroupForUser(userId: bigint): Promise<bigint> {

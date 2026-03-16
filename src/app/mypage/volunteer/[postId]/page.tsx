@@ -77,6 +77,7 @@ export default function MyVolunteerManagePage() {
   const { user, isAuthenticated } = useAuth();
   const [rejectAppId, setRejectAppId] = useState<number | null>(null);
   const [rejectReason, setRejectReason] = useState("");
+  const [rejectCustomReason, setRejectCustomReason] = useState("");
 
   const { data: post, isLoading: postLoading } = trpc.volunteer.getById.useQuery(
     { id: postId },
@@ -376,12 +377,17 @@ export default function MyVolunteerManagePage() {
           <AlertDialogHeader>
             <AlertDialogTitle>신청 거절</AlertDialogTitle>
             <AlertDialogDescription>
-              거절 사유를 선택하세요. 신청자에게 알림으로 전달됩니다.
+              거절 사유를 선택하거나 입력하세요. 신청자에게 알림으로 전달됩니다.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <RadioGroup
             value={rejectReason}
-            onValueChange={setRejectReason}
+            onValueChange={(v) => {
+              setRejectReason(v);
+              if (v !== "기타") {
+                setRejectCustomReason("");
+              }
+            }}
             className="gap-2 py-2"
           >
             {REJECT_REASONS.map((r) => (
@@ -393,15 +399,37 @@ export default function MyVolunteerManagePage() {
               </div>
             ))}
           </RadioGroup>
+          {rejectReason === "기타" && (
+            <div className="mt-3 space-y-1">
+              <Label htmlFor="reject-custom" className="text-xs text-gray-600">
+                직접 입력
+              </Label>
+              <textarea
+                id="reject-custom"
+                className="w-full rounded-md border border-gray-300 px-2 py-1 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-orange-500"
+                rows={3}
+                placeholder="거절 사유를 입력해 주세요."
+                value={rejectCustomReason}
+                onChange={(e) => setRejectCustomReason(e.target.value)}
+              />
+            </div>
+          )}
           <AlertDialogFooter>
             <AlertDialogCancel>취소</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
                 if (rejectAppId != null) {
-                  rejectMutation.mutate({ applicationId: rejectAppId });
+                  const reason =
+                    rejectReason === "기타"
+                      ? rejectCustomReason.trim()
+                      : rejectReason;
+                  rejectMutation.mutate({ applicationId: rejectAppId, reason });
                 }
               }}
-              disabled={!rejectReason}
+              disabled={
+                !rejectReason ||
+                (rejectReason === "기타" && !rejectCustomReason.trim())
+              }
               className="bg-destructive text-destructive-foreground"
             >
               거절하기

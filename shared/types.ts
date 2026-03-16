@@ -84,6 +84,8 @@ export type ApplicationView = {
   /** ATTENDED | ABSENT | NO_SHOW */
   attendanceStatus?: string | null;
   createdAt: Date;
+  /** 신청 거절 사유 (있을 경우) */
+  rejectionReason?: string | null;
 };
 
 export type BookmarkView = {

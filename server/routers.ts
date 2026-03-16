@@ -45,6 +45,8 @@ import {
   getReputationByUserId,
   getReviewsByUserId,
   createReview,
+  getMyReceivedVolunteerReviews,
+  getMyReceivedVolunteerReviewById,
   hashPassword,
   setUserPasswordByEmail,
 } from "./db";
@@ -545,9 +547,19 @@ export const appRouter = router({
 
     /** 신청 거절 (글 작성자만) */
     reject: protectedProcedure
-      .input(z.object({ applicationId: z.number() }))
+      .input(
+        z.object({
+          applicationId: z.number(),
+          reason: z.string().max(500).optional(),
+        })
+      )
       .mutation(async ({ ctx, input }) => {
-        await updateApplicationStatus(input.applicationId, "REJECTED", ctx.user.id);
+        await updateApplicationStatus(
+          input.applicationId,
+          "REJECTED",
+          ctx.user.id,
+          input.reason ?? null
+        );
         return { success: true };
       }),
 
@@ -673,6 +685,18 @@ export const appRouter = router({
           reviewType: input.reviewType,
         });
         return { id: result.id };
+      }),
+
+    /** 내가 받은 평가(주최자→참여자) 목록 */
+    getMyReceived: protectedProcedure.query(async ({ ctx }) => {
+      return await getMyReceivedVolunteerReviews(ctx.user.id);
+    }),
+
+    /** 내가 받은 평가(주최자→참여자) 단건 */
+    getMyReceivedById: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ ctx, input }) => {
+        return await getMyReceivedVolunteerReviewById(ctx.user.id, input.id);
       }),
   }),
 

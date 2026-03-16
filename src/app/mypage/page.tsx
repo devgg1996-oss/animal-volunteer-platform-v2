@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -65,6 +65,7 @@ export default function MyPage() {
   const [remindOn, setRemindOn] = useState(true);
   const [newPostAlertOn, setNewPostAlertOn] = useState(false);
   const [showCancelConfirm, setShowCancelConfirm] = useState<number | null>(null);
+  const [selectedApplicationDate, setSelectedApplicationDate] = useState<string | null>(null);
 
   const { data: applications = [], isLoading: appsLoading } =
     trpc.application.getMyApplicationsWithDetails.useQuery(undefined, {
@@ -95,6 +96,40 @@ export default function MyPage() {
       ),
     [applications, todayStart]
   );
+
+  const myApplicationsForStatusView = useMemo(() => {
+    // 홈의 "나의 봉사 신청 현황"과 동일 컨셉: 최근 신청 내역 기준으로 상태 확인
+    return [...applications]
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .slice(0, 30);
+  }, [applications]);
+
+  const applicationDates = useMemo(() => {
+    const dates = Array.from(
+      new Set(
+        myApplicationsForStatusView.map((app) =>
+          new Date(app.scheduleDate).toISOString().slice(0, 10)
+        )
+      )
+    )
+      .sort()
+      .reverse();
+    return dates;
+  }, [myApplicationsForStatusView]);
+
+  useEffect(() => {
+    if (!selectedApplicationDate && applicationDates.length > 0) {
+      setSelectedApplicationDate(applicationDates[0]);
+    }
+  }, [applicationDates, selectedApplicationDate]);
+
+  const applicationsForSelectedDate = useMemo(() => {
+    if (!selectedApplicationDate) return [];
+    return myApplicationsForStatusView.filter((app) => {
+      const d = new Date(app.scheduleDate).toISOString().slice(0, 10);
+      return d === selectedApplicationDate;
+    });
+  }, [myApplicationsForStatusView, selectedApplicationDate]);
 
   const completed = useMemo(
     () =>
@@ -195,162 +230,108 @@ export default function MyPage() {
           </CardHeader>
         </Card>
 
-        {/* 2. 예정된 봉사 일정 */}
+        {/* 2. 나의 봉사 신청 현황 (홈과 동일 UI로 대체) */}
         <section>
           <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
             <Calendar className="w-5 h-5 text-orange-600" />
-            나의 봉사 일정 (예정된 활동)
+            나의 봉사 신청 현황
           </h2>
           {appsLoading ? (
             <p className="text-sm text-gray-500">불러오는 중...</p>
-          ) : upcoming.length === 0 ? (
-            <Card>
-              <CardContent className="py-8 text-center text-gray-500 text-sm">
-                예정된 봉사 일정이 없습니다.
-              </CardContent>
-            </Card>
           ) : (
-            <ul className="space-y-3">
-              {upcoming.map((app) => (
-                <li key={app.id}>
-                  <Card
-                    className="cursor-pointer hover:border-orange-300 transition-colors"
-                    onClick={() => router.push(`/mypage/applications/${app.id}`)}
-                  >
-                    <CardContent className="p-4">
-                      <div className="flex justify-between items-start gap-2">
-                        <div className="min-w-0 flex-1">
-                          <p className="font-medium truncate">{app.postTitle}</p>
-                          {app.authorName && (
-                            <p className="text-xs text-gray-500 mt-0.5">작성자: {app.authorName}</p>
-                          )}
-                          <p className="text-sm text-gray-500 mt-1">
-                            {formatDate(app.scheduleDate)} · {app.startTime} ~ {app.endTime}
-                          </p>
-                          <div className="flex items-center gap-1 text-sm text-gray-500 mt-1">
-                            <MapPin className="w-4 h-4 shrink-0" />
-                            <span className="truncate">{app.postAddress}</span>
-                          </div>
-                          <div className="flex items-center gap-2 mt-2">
-                            <Badge variant="secondary" className="text-xs">
-                              {STATUS_LABEL[app.status] ?? app.status}
-                            </Badge>
-                            <span className="text-xs text-orange-600 font-medium">
-                              {getDday(app.scheduleDate)}
-                            </span>
-                            <span className="text-xs text-gray-400">
-                              신청일 {formatDate(app.createdAt)}
-                            </span>
-                          </div>
-                        </div>
-                        <ChevronRight className="w-5 h-5 text-gray-400 shrink-0" />
-                      </div>
-                      {showCancelConfirm === app.id ? (
-                        <div className="mt-4 p-3 bg-amber-50 rounded-lg border border-amber-200">
-                          <p className="text-sm text-amber-800 mb-2">
-                            정말 봉사 신청을 취소하시겠습니까? 취소 후에는 재신청이 필요할 수 있습니다.
-                          </p>
-                          <div className="flex gap-2">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setShowCancelConfirm(null);
-                              }}
+            <div className="flex flex-col sm:flex-row gap-4 -mx-2 px-2">
+              {/* 왼쪽: 날짜 리스트 (달력 역할) */}
+              <div className="sm:w-1/3">
+                <div className="rounded-lg border bg-white p-3 max-h-64 overflow-y-auto">
+                  {applicationDates.length === 0 ? (
+                    <p className="text-xs text-gray-500">신청 내역이 없습니다.</p>
+                  ) : (
+                    <ul className="space-y-1">
+                      {applicationDates.map((d) => {
+                        const dateObj = new Date(d + "T00:00:00Z");
+                        const isSelected = selectedApplicationDate === d;
+                        return (
+                          <li key={d}>
+                            <button
+                              type="button"
+                              onClick={() => setSelectedApplicationDate(d)}
+                              className={`w-full text-left px-2 py-1 rounded-md text-xs ${
+                                isSelected
+                                  ? "bg-orange-100 text-orange-700 font-medium"
+                                  : "hover:bg-gray-50 text-gray-700"
+                              }`}
                             >
-                              유지
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="destructive"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                cancelMutation.mutate({ applicationId: app.id });
-                              }}
-                            >
-                              취소하기
-                            </Button>
+                              {dateObj.toLocaleDateString("ko-KR", {
+                                month: "short",
+                                day: "numeric",
+                                weekday: "short",
+                              })}
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </div>
+              </div>
+
+              {/* 오른쪽: 선택한 날짜의 신청 내역 */}
+              <div className="sm:w-2/3">
+                <div className="rounded-lg border bg-white p-3 space-y-2 max-h-64 overflow-y-auto">
+                  {applicationsForSelectedDate.length === 0 ? (
+                    <p className="text-xs text-gray-500">
+                      선택한 날짜에 신청한 봉사 내역이 없습니다.
+                    </p>
+                  ) : (
+                    applicationsForSelectedDate.map((app) => (
+                      <Card
+                        key={app.id}
+                        className="p-3 cursor-pointer hover:shadow-sm transition-shadow border-gray-100"
+                        onClick={() => router.push(`/mypage/applications/${app.id}`)}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0 flex-1">
+                            <p className="font-medium text-gray-800 text-sm truncate">
+                              {app.postTitle}
+                            </p>
+                            <p className="text-[11px] text-gray-500 mt-0.5">
+                              {new Date(app.scheduleDate).toLocaleTimeString("ko-KR", {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}{" "}
+                              ({app.startTime}~{app.endTime})
+                            </p>
                           </div>
+                          <span
+                            className={`shrink-0 text-[11px] font-medium px-2 py-0.5 rounded ${
+                              app.status === "APPROVED"
+                                ? "bg-green-100 text-green-700"
+                                : app.status === "REJECTED"
+                                  ? "bg-red-100 text-red-700"
+                                  : app.status === "CANCELLED"
+                                    ? "bg-gray-100 text-gray-600"
+                                    : "bg-amber-100 text-amber-700"
+                            }`}
+                          >
+                            {STATUS_LABEL[app.status] ?? app.status}
+                          </span>
                         </div>
-                      ) : (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="mt-3 text-gray-600"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setShowCancelConfirm(app.id);
-                          }}
-                        >
-                          봉사활동 취소
-                        </Button>
-                      )}
-                    </CardContent>
-                  </Card>
-                </li>
-              ))}
-            </ul>
+                      </Card>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
           )}
         </section>
 
-        {/* 3. 완료된 봉사 내역 */}
+        {/* 3. 나의 봉사 내역 (평가 받은 활동만) */}
         <section>
           <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
             <Clock className="w-5 h-5 text-orange-600" />
             나의 봉사 내역
           </h2>
-          {completed.length === 0 ? (
-            <Card>
-              <CardContent className="py-8 text-center text-gray-500 text-sm">
-                완료된 봉사 내역이 없습니다.
-              </CardContent>
-            </Card>
-          ) : (
-            <ul className="space-y-3">
-              {completed.map((app, index) => (
-                <li key={app.id}>
-                  <Card
-                    className="cursor-pointer hover:border-orange-200"
-                    onClick={() => router.push(`/mypage/applications/${app.id}`)}
-                  >
-                    <CardContent className="p-4">
-                      <p className="font-medium truncate">{app.postTitle}</p>
-                      <p className="text-sm text-gray-500 mt-1">
-                        {formatDate(app.scheduleDate)} · {app.startTime} ~ {app.endTime}
-                      </p>
-                      <div className="flex items-center gap-2 mt-2">
-                        <Badge variant="secondary" className="text-xs">
-                          {STATUS_LABEL[app.status] ?? app.status}
-                        </Badge>
-                        {app.attended === true && (
-                          <Badge className="bg-green-600">참석</Badge>
-                        )}
-                        {app.attended === false && (
-                          <Badge variant="secondary">불참</Badge>
-                        )}
-                        {app.attended == null && app.status === "CANCELLED" && (
-                          <Badge variant="outline">취소됨</Badge>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                  {/* 추천: 3개마다 추천 카드 (최신 구인글) */}
-                  {(index + 1) % 3 === 0 && index < completed.length - 1 && myPosts[0] && (
-                    <Card
-                      className="mt-3 border-dashed bg-orange-50/50 cursor-pointer"
-                      onClick={() => router.push(`/mypage/volunteer/${myPosts[0].id}`)}
-                    >
-                      <CardContent className="py-3 px-4 flex items-center justify-between">
-                        <span className="text-sm text-gray-600">다른 봉사도 확인해 보세요</span>
-                        <ChevronRight className="w-4 h-4" />
-                      </CardContent>
-                    </Card>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
+          <MyReceivedReviewsBlock />
         </section>
 
         {/* 4. 알림 설정 */}
@@ -510,5 +491,63 @@ export default function MyPage() {
         </section>
       </div>
     </div>
+  );
+}
+
+function MyReceivedReviewsBlock() {
+  const router = useRouter();
+  const { isAuthenticated } = useAuth();
+  const { data: reviews = [], isLoading } = trpc.review.getMyReceived.useQuery(undefined, {
+    enabled: isAuthenticated,
+  });
+
+  if (isLoading) {
+    return <p className="text-sm text-gray-500">불러오는 중...</p>;
+  }
+
+  if (!reviews.length) {
+    return (
+      <Card>
+        <CardContent className="py-8 text-center text-gray-500 text-sm">
+          평가받은 봉사 내역이 없습니다.
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <ul className="space-y-3">
+      {reviews.map((r) => (
+        <li key={r.id}>
+          <Card className="hover:border-orange-200 transition-colors">
+            <CardContent className="p-4 flex items-start justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <p className="font-medium truncate">{r.volunteerPostTitle ?? "봉사 활동"}</p>
+                <p className="text-xs text-gray-500 mt-1">
+                  작성자: {r.writerName || "-"} · {new Date(r.createdAt).toLocaleDateString("ko-KR")}
+                </p>
+                <p className="text-xs text-gray-600 mt-2">
+                  평점 <span className="font-semibold">{r.rating}</span> / 5
+                </p>
+              </div>
+              <div className="shrink-0 flex flex-col gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => router.push(`/mypage/reviews/${r.id}`)}
+                >
+                  평가 보기
+                </Button>
+                {r.volunteerPostId != null && (
+                  <Button size="sm" variant="ghost" onClick={() => router.push(`/volunteer/${r.volunteerPostId}`)}>
+                    모집글
+                  </Button>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </li>
+      ))}
+    </ul>
   );
 }
