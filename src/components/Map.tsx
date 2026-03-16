@@ -1,3 +1,5 @@
+"use client";
+
 import { useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { ensureKakaoServicesLoaded, loadKakaoMap } from "@/lib/kakaoMap";
@@ -54,7 +56,7 @@ export function MapView({
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const kakao = await loadKakaoMap();
+      const kakao = await loadKakaoMap({ libraries: ["services"] });
       if (cancelled) return;
       if (!mapContainer.current) return;
 

@@ -14,6 +14,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { MapPin, Clock, Users, AlertCircle, Heart, Share2, ArrowLeft } from "lucide-react";
+import { MapView } from "@/components/Map";
 import { getImageSrc } from "@/lib/utils";
 import { trpc } from "@/lib/trpc";
 import { useParams, useRouter } from "next/navigation";
@@ -273,7 +274,7 @@ export default function VolunteerDetailPage() {
             ) : null}
 
             {post.precautions && (
-              <Card className="p-6 border-0 bg-yellow-50 border-l-4 border-yellow-400">
+              <Card className="p-6 border-0 bg-yellow-50 border-l-4 border-yellow-400 mb-6">
                 <div className="flex gap-3">
                   <AlertCircle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
                   <div>
@@ -282,6 +283,32 @@ export default function VolunteerDetailPage() {
                   </div>
                 </div>
               </Card>
+            )}
+
+            {/* 봉사 위치 + 지도 (하단 배치) */}
+            {post.latitude != null && post.longitude != null && (
+              <section className="bg-card text-card-foreground rounded-xl border shadow-sm p-6 mb-6">
+                <h2 className="text-xl font-bold text-gray-800 mb-4">봉사 위치</h2>
+                <div className="mb-3 text-sm text-gray-700 flex items-start gap-2">
+                  <MapPin className="w-4 h-4 text-orange-600 mt-0.5" />
+                  <div className="min-w-0">
+                    <p className="font-medium">{post.address}</p>
+                    {post.detailedLocation && (
+                      <p className="text-xs text-gray-600 mt-0.5">
+                        {post.detailedLocation}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <div className="w-full h-64 rounded-lg overflow-hidden border">
+                  <MapView
+                    className="w-full h-full"
+                    initialCenter={{ lat: post.latitude, lng: post.longitude }}
+                    initialZoom={15}
+                    showMarker
+                  />
+                </div>
+              </section>
             )}
           </div>
 
