@@ -176,6 +176,64 @@ export default function VolunteerDetailPage() {
               </div>
             </Card>
 
+            {/* 봉사 일정 및 시간대별 신청 현황 */}
+            {((post as typeof post & {
+              schedules?: { id: number; date: Date; startTime: string; endTime: string; maxSlots: number; currentApplications: number }[];
+            }).schedules ?? []).length > 0 && (
+              <section className="bg-card text-card-foreground rounded-xl border shadow-sm p-6 mb-6">
+                <h2 className="text-xl font-bold text-gray-800 mb-4">봉사 일정 / 신청 현황</h2>
+                <ul className="space-y-3">
+                  {((post as typeof post & {
+                    schedules?: { id: number; date: Date; startTime: string; endTime: string; maxSlots: number; currentApplications: number }[];
+                  }).schedules ?? []).map((s) => {
+                    const date = new Date(s.date);
+                    const remain =
+                      (s.maxSlots ?? 0) > 0
+                        ? Math.max(0, (s.maxSlots ?? 0) - (s.currentApplications ?? 0))
+                        : null;
+                    return (
+                      <li
+                        key={s.id}
+                        className="flex items-center justify-between gap-3 rounded-lg border bg-white px-3 py-2 text-sm"
+                      >
+                        <div className="min-w-0">
+                          <p className="font-medium text-gray-800">
+                            {date.toLocaleDateString("ko-KR", {
+                              month: "long",
+                              day: "numeric",
+                              weekday: "short",
+                            })}
+                          </p>
+                          <p className="text-xs text-gray-600 mt-0.5">
+                            {s.startTime} ~ {s.endTime}
+                          </p>
+                        </div>
+                        <div className="text-right text-xs text-gray-600 shrink-0">
+                          <p>
+                            현재{" "}
+                            <span className="font-semibold text-gray-800">
+                              {s.currentApplications}
+                            </span>
+                            명 신청
+                          </p>
+                          {s.maxSlots > 0 && (
+                            <p>
+                              최대 {s.maxSlots}명
+                              {remain != null && (
+                                <span className="ml-1 text-orange-600 font-semibold">
+                                  (잔여 {remain}명)
+                                </span>
+                              )}
+                            </p>
+                          )}
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </section>
+            )}
+
             <section className="bg-card text-card-foreground rounded-xl border shadow-sm p-6 mb-6">
               <h2 className="text-xl font-bold text-gray-800 mb-4">모집글 설명</h2>
               <p className="text-gray-700 whitespace-pre-wrap leading-relaxed">{typeof post.description === "string" ? post.description : ""}</p>
