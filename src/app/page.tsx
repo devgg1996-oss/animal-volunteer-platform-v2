@@ -191,7 +191,7 @@ export default function Home() {
               (p as any).latitude,
               (p as any).longitude
             )
-          : 0,
+          : undefined,
     }));
 
     if (allCategory !== "all") {
