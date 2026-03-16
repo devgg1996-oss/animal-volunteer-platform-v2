@@ -54,10 +54,25 @@ export default function Home() {
   const [sortBy, setSortBy] = useState<"distance" | "recent">("distance");
   const [locationLoading, setLocationLoading] = useState(false);
 
+  const { data: defaultMyLocation } = trpc.userLocation.getDefault.useQuery(undefined, {
+    enabled: isAuthenticated,
+  });
+
   useEffect(() => {
+    // 로그인: 기본 주소가 있으면 그걸 우선 적용
+    if (isAuthenticated && defaultMyLocation) {
+      const lat = defaultMyLocation.latitude;
+      const lng = defaultMyLocation.longitude;
+      if (lat != null && lng != null) {
+        setLocation({ latitude: lat, longitude: lng });
+      }
+      setAddress(defaultMyLocation.formattedAddress ?? defaultMyLocation.address1 ?? "");
+      return;
+    }
+    // 비로그인/기본주소 없음: 기존 기본값 유지
     setLocation({ latitude: 37.4979, longitude: 127.0276 });
     setAddress("서울시 강남구 (기본 위치)");
-  }, []);
+  }, [isAuthenticated, defaultMyLocation]);
 
   const searchByLocation = trpc.volunteer.searchByLocation.useQuery(
     location
@@ -82,7 +97,6 @@ export default function Home() {
       .filter(
         (a) =>
           (a.status === "PENDING" || a.status === "APPROVED") &&
-          a.status !== "CANCELLED" &&
           new Date(a.scheduleDate).getTime() >= today.getTime()
       )
       .sort((a, b) => new Date(a.scheduleDate).getTime() - new Date(b.scheduleDate).getTime())
@@ -198,7 +212,13 @@ export default function Home() {
               variant="ghost"
               size="sm"
               className="text-gray-600"
-              onClick={() => toast.info("주소 관리 기능은 준비 중입니다.")}
+              onClick={() => {
+                if (!isAuthenticated) {
+                  toast.error("로그인이 필요합니다");
+                  return;
+                }
+                router.push("/mypage/addresses");
+              }}
             >
               <Settings className="w-4 h-4 mr-1" />
               주소 관리
@@ -414,7 +434,7 @@ export default function Home() {
                             {post.currentApplications}/{post.maxParticipants}명
                           </span>
                           {post.hasRequiredItems && (
-                            <Package className="w-4 h-4 text-gray-400" title="준비물 있음" />
+                            <Package className="w-4 h-4 text-gray-400" aria-label="준비물 있음" />
                           )}
                         </div>
                         {post.distance != null && post.distance < 999 && (

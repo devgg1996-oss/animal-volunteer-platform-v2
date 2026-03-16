@@ -91,8 +91,7 @@ export default function MyPage() {
       applications.filter(
         (a) =>
           (a.status === "PENDING" || a.status === "APPROVED") &&
-          new Date(a.scheduleDate).getTime() >= todayStart &&
-          a.status !== "CANCELLED"
+          new Date(a.scheduleDate).getTime() >= todayStart
       ),
     [applications, todayStart]
   );
@@ -215,7 +214,7 @@ export default function MyPage() {
                 <li key={app.id}>
                   <Card
                     className="cursor-pointer hover:border-orange-300 transition-colors"
-                    onClick={() => router.push(`/volunteer/${app.postId}`)}
+                    onClick={() => router.push(`/mypage/applications/${app.id}`)}
                   >
                     <CardContent className="p-4">
                       <div className="flex justify-between items-start gap-2">
@@ -312,7 +311,7 @@ export default function MyPage() {
                 <li key={app.id}>
                   <Card
                     className="cursor-pointer hover:border-orange-200"
-                    onClick={() => router.push(`/volunteer/${app.postId}`)}
+                    onClick={() => router.push(`/mypage/applications/${app.id}`)}
                   >
                     <CardContent className="p-4">
                       <p className="font-medium truncate">{app.postTitle}</p>
@@ -445,6 +444,14 @@ export default function MyPage() {
                 onClick={() => router.push("/mypage/profile")}
               >
                 프로필 수정
+              </Button>
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={() => router.push("/mypage/addresses")}
+              >
+                <MapPin className="w-4 h-4 mr-2 text-orange-500" />
+                주소 관리
               </Button>
               <Button
                 variant="outline"

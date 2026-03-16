@@ -32,6 +32,11 @@ import {
   addBookmark,
   removeBookmark,
   updateUserProfile,
+  listUserLocations,
+  getDefaultUserLocation,
+  upsertUserLocation,
+  deleteUserLocation,
+  setDefaultUserLocation,
   updateApplicationStatus,
   cancelApplicationByApplicant,
   setApplicationEvaluation,
@@ -198,6 +203,59 @@ export const appRouter = router({
       }),
   }),
 
+  userLocation: router({
+    /** 내 주소 목록 */
+    listMy: protectedProcedure.query(async ({ ctx }) => {
+      return await listUserLocations(ctx.user.id);
+    }),
+    /** 내 기본 주소 */
+    getDefault: protectedProcedure.query(async ({ ctx }) => {
+      return await getDefaultUserLocation(ctx.user.id);
+    }),
+    /** 주소 추가/수정 */
+    upsert: protectedProcedure
+      .input(
+        z.object({
+          id: z.number().optional(),
+          name: z.string().min(1).max(50),
+          formattedAddress: z.string().min(1).max(500),
+          detailedLocation: z.string().max(200).optional(),
+          postalCode: z.string().max(30).optional(),
+          latitude: z.number().nullable().optional(),
+          longitude: z.number().nullable().optional(),
+          isDefault: z.boolean().optional(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const row = await upsertUserLocation({
+          id: input.id,
+          userId: ctx.user.id,
+          name: input.name,
+          formattedAddress: input.formattedAddress,
+          detailedLocation: input.detailedLocation ?? null,
+          postalCode: input.postalCode ?? null,
+          latitude: input.latitude ?? null,
+          longitude: input.longitude ?? null,
+          isDefault: input.isDefault,
+        });
+        return row;
+      }),
+    /** 주소 삭제 */
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        await deleteUserLocation(ctx.user.id, input.id);
+        return { success: true };
+      }),
+    /** 기본 주소로 설정 */
+    setDefault: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        await setDefaultUserLocation(ctx.user.id, input.id);
+        return { success: true };
+      }),
+  }),
+
   // 봉사 모집글 관련 API
   volunteer: router({
     // 위치 기반 봉사 모집글 검색
@@ -287,6 +345,10 @@ export const appRouter = router({
           id: z.number(),
           title: z.string().max(80).optional(),
           description: z.string().max(2200).optional(),
+          address: z.string().max(500).optional(),
+          detailedLocation: z.string().max(200).optional(),
+          latitude: z.number().nullable().optional(),
+          longitude: z.number().nullable().optional(),
           thumbnailImage: z.string().optional(),
           additionalImages: z.array(z.string()).optional(),
           requiredItems: z.array(z.string()).optional(),
@@ -303,6 +365,10 @@ export const appRouter = router({
           id: input.id,
           title: input.title,
           description: input.description,
+          address: input.address,
+          detailedLocation: input.detailedLocation,
+          latitude: input.latitude ?? undefined,
+          longitude: input.longitude ?? undefined,
           thumbnailImageUrl: input.thumbnailImage,
           activityImages: input.additionalImages,
           status: input.status === "recruiting" ? "RECRUITING" : input.status === "closed" ? "CLOSED" : input.status === "completed" ? "COMPLETED" : undefined,
@@ -341,6 +407,7 @@ export const appRouter = router({
       .input(
         z.object({
           scheduleId: z.number(),
+          date: z.string().optional(),
           startTime: z.string().optional(),
           endTime: z.string().optional(),
           maxSlots: z.number().optional(),
@@ -353,6 +420,7 @@ export const appRouter = router({
 
         await updateSchedule({
           scheduleId: input.scheduleId,
+          date: input.date,
           startTime: input.startTime,
           endTime: input.endTime,
           maxParticipants: input.maxSlots,

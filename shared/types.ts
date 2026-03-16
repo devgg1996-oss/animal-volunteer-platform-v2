@@ -21,6 +21,21 @@ export type AppUser = {
   lastSignedIn: Date;
 };
 
+export type UserLocationView = {
+  id: number;
+  name: string;
+  formattedAddress: string | null;
+  address1: string | null;
+  address2: string | null;
+  address3: string | null;
+  postalCode: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  isDefault: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
 export type VolunteerScheduleView = {
   id: number;
   date: Date;

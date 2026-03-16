@@ -199,7 +199,7 @@ export default function MyVolunteerManagePage() {
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => router.push(`/volunteer/${postId}`)}
+                onClick={() => router.push(`/volunteer/${postId}/edit`)}
               >
                 <Edit className="w-4 h-4 mr-1" />
                 모집글 수정

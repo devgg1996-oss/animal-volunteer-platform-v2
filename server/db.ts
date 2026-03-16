@@ -1,6 +1,15 @@
-import { PrismaClient } from "@prisma/client";
+import { Prisma, PrismaClient } from "@prisma/client";
 import { nanoid } from "nanoid";
-import type { AppUser, VolunteerPostView, VolunteerScheduleView, ApplicationView, BookmarkView, ReputationView, ReviewView } from "@shared/types";
+import type {
+  AppUser,
+  VolunteerPostView,
+  VolunteerScheduleView,
+  ApplicationView,
+  BookmarkView,
+  ReputationView,
+  ReviewView,
+  UserLocationView,
+} from "@shared/types";
 
 const GUID_LEN = 40;
 function guid(): string {
@@ -532,7 +541,7 @@ export async function createVolunteerPost(input: CreateVolunteerPostInput): Prom
       lat: input.latitude ?? null,
       lng: input.longitude ?? null,
       thumbnailImageUrl: input.thumbnailImageUrl ?? null,
-      activityImages: input.activityImages ?? null,
+      activityImages: input.activityImages ?? Prisma.DbNull,
       startDate: now,
       endDate: endDefault,
       status: "RECRUITING",
@@ -748,6 +757,160 @@ export async function updateUserProfile(input: UpdateUserProfileInput): Promise<
   await prisma.user.update({
     where: { id: BigInt(input.userId) },
     data: data as never,
+  });
+}
+
+function toUserLocationView(row: {
+  id: bigint;
+  name: string;
+  formattedAddress: string | null;
+  address1: string | null;
+  address2: string | null;
+  address3: string | null;
+  postalCode: string | null;
+  lat: number | null;
+  lng: number | null;
+  isDefault: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}): UserLocationView {
+  return {
+    id: Number(row.id),
+    name: row.name,
+    formattedAddress: row.formattedAddress,
+    address1: row.address1,
+    address2: row.address2,
+    address3: row.address3,
+    postalCode: row.postalCode,
+    latitude: row.lat,
+    longitude: row.lng,
+    isDefault: row.isDefault,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  };
+}
+
+// --- 내 주소(UserLocation) ---
+export async function listUserLocations(userId: number): Promise<UserLocationView[]> {
+  const rows = await prisma.userLocation.findMany({
+    where: { userId: BigInt(userId), deletedAt: null },
+    orderBy: [{ isDefault: "desc" }, { updatedAt: "desc" }],
+  });
+  return rows.map(toUserLocationView);
+}
+
+export async function getDefaultUserLocation(userId: number): Promise<UserLocationView | null> {
+  const row = await prisma.userLocation.findFirst({
+    where: { userId: BigInt(userId), deletedAt: null, isDefault: true },
+    orderBy: { updatedAt: "desc" },
+  });
+  return row ? toUserLocationView(row) : null;
+}
+
+export type UpsertUserLocationInput = {
+  id?: number;
+  userId: number;
+  name: string;
+  formattedAddress?: string | null;
+  detailedLocation?: string | null;
+  postalCode?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  isDefault?: boolean;
+};
+
+export async function upsertUserLocation(input: UpsertUserLocationInput): Promise<UserLocationView> {
+  const bigUserId = BigInt(input.userId);
+  const shouldMakeDefault = input.isDefault === true;
+
+  return await prisma.$transaction(async (tx) => {
+    // 첫 주소는 기본으로
+    const existingCount = await tx.userLocation.count({
+      where: { userId: bigUserId, deletedAt: null },
+    });
+    const makeDefault = shouldMakeDefault || existingCount === 0;
+
+    if (makeDefault) {
+      await tx.userLocation.updateMany({
+        where: { userId: bigUserId, deletedAt: null, isDefault: true },
+        data: { isDefault: false },
+      });
+    }
+
+    const data = {
+      name: input.name,
+      formattedAddress: input.formattedAddress ?? null,
+      address2: input.detailedLocation ?? null,
+      postalCode: input.postalCode ?? null,
+      lat: input.latitude ?? null,
+      lng: input.longitude ?? null,
+      isDefault: makeDefault,
+    };
+
+    const row = input.id
+      ? await tx.userLocation.update({
+          where: { id: BigInt(input.id) },
+          data: data as never,
+        })
+      : await tx.userLocation.create({
+          data: {
+            guid: guid(),
+            userId: bigUserId,
+            ...data,
+          } as never,
+        });
+
+    return toUserLocationView(row);
+  });
+}
+
+export async function deleteUserLocation(userId: number, locationId: number): Promise<void> {
+  const bigUserId = BigInt(userId);
+  const row = await prisma.userLocation.findFirst({
+    where: { id: BigInt(locationId), userId: bigUserId, deletedAt: null },
+  });
+  if (!row) return;
+
+  await prisma.$transaction(async (tx) => {
+    await tx.userLocation.update({
+      where: { id: BigInt(locationId) },
+      data: { deletedAt: new Date(), isDefault: false } as never,
+    });
+
+    // 기본 주소가 삭제되면 가장 최근 주소를 기본으로 승격
+    const remaining = await tx.userLocation.findFirst({
+      where: { userId: bigUserId, deletedAt: null },
+      orderBy: { updatedAt: "desc" },
+    });
+    if (remaining) {
+      await tx.userLocation.updateMany({
+        where: { userId: bigUserId, deletedAt: null, isDefault: true },
+        data: { isDefault: false },
+      });
+      await tx.userLocation.update({
+        where: { id: remaining.id },
+        data: { isDefault: true } as never,
+      });
+    }
+  });
+}
+
+export async function setDefaultUserLocation(userId: number, locationId: number): Promise<void> {
+  const bigUserId = BigInt(userId);
+  const row = await prisma.userLocation.findFirst({
+    where: { id: BigInt(locationId), userId: bigUserId, deletedAt: null },
+  });
+  if (!row) throw new Error("Location not found");
+
+  await prisma.$transaction(async (tx) => {
+    await tx.userLocation.updateMany({
+      where: { userId: bigUserId, deletedAt: null, isDefault: true },
+      data: { isDefault: false },
+    });
+    await tx.userLocation.update({
+      where: { id: BigInt(locationId) },
+      data: { isDefault: true } as never,
+    });
   });
 }
 
