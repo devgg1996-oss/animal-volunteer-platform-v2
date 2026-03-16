@@ -475,8 +475,9 @@ export const appRouter = router({
         z.object({
           postId: z.number(),
           scheduleId: z.number(),
-          applicantName: z.string(),
-          applicantPhone: z.string(),
+          applicantName: z.string().min(1).max(50),
+          // 010 + 뒤 8자리 숫자만 허용 (총 11자리)
+          applicantPhone: z.string().regex(/^010\d{8}$/, "연락처는 010으로 시작하는 11자리 숫자여야 합니다."),
         })
       )
       .mutation(async ({ ctx, input }) => {

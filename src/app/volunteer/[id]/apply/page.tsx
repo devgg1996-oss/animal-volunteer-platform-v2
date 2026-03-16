@@ -46,6 +46,7 @@ export default function VolunteerApplyPage() {
 
   const [applicantName, setApplicantName] = useState("");
   const [applicantPhone, setApplicantPhone] = useState("");
+  const applicantEmail = user?.email ?? "";
   const [selectedScheduleId, setSelectedScheduleId] = useState<number | null>(null);
   const [agreedToNotice, setAgreedToNotice] = useState(false);
   const [healthAllergy, setHealthAllergy] = useState(false);
@@ -66,7 +67,8 @@ export default function VolunteerApplyPage() {
   useEffect(() => {
     if (user && !isEditingInfo) {
       setApplicantName(user.nickname || user.name || "");
-      setApplicantPhone("");
+      // 연락처는 기본값 010으로 시작하도록
+      setApplicantPhone("010");
     }
   }, [user, isEditingInfo]);
 
@@ -127,8 +129,12 @@ export default function VolunteerApplyPage() {
       toast.error("이름을 입력해주세요");
       return;
     }
-    if (!applicantPhone.trim()) {
-      toast.error("연락처를 입력해주세요");
+    if (!/^010\d{8}$/.test(applicantPhone)) {
+      toast.error("연락처는 010으로 시작하는 11자리 숫자만 입력할 수 있어요");
+      return;
+    }
+    if (!applicantEmail) {
+      toast.error("이메일 정보를 불러올 수 없습니다. 다시 로그인해 주세요.");
       return;
     }
     if (!selectedScheduleId) {
@@ -208,10 +214,25 @@ export default function VolunteerApplyPage() {
               </Label>
               <Input
                 value={applicantPhone}
-                onChange={(e) => setApplicantPhone(e.target.value)}
-                placeholder="010-0000-0000"
+                onChange={(e) => {
+                  // 숫자만, 010으로 시작, 총 11자리 제한
+                  const digits = e.target.value.replace(/\D/g, "");
+                  const withPrefix = digits.startsWith("010") ? digits : `010${digits.replace(/^0+/, "").replace(/^10/, "")}`;
+                  setApplicantPhone(withPrefix.slice(0, 11));
+                }}
+                placeholder="010XXXXXXXX"
                 disabled={!isEditingInfo}
+                inputMode="numeric"
               />
+              <p className="text-xs text-gray-500">010으로 시작하는 숫자 11자리만 입력 가능</p>
+            </div>
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2">
+                <User className="w-4 h-4" />
+                이메일
+              </Label>
+              <Input value={applicantEmail} disabled placeholder="이메일" />
+              <p className="text-xs text-gray-500">이메일은 수정할 수 없습니다.</p>
             </div>
           </CardContent>
         </Card>
